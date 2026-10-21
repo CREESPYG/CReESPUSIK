@@ -1,38 +1,13 @@
-﻿# Dependencies and builds
+# Dependencies and builds
 node_modules/
 dist/
-dist-native/
 dev-dist/
-desktop/dist/
-release/
-desktop/out/
 
-# Android Gradle build artifacts
-mobile/android/.gradle/
-mobile/android/app/build/
-mobile/android/capacitor-cordova-android-plugins/build/
-mobile/android/local.properties
-mobile/android/app/src/main/assets/public/
-
-# Keystore secrets (keep keys private)
-*.keystore
-keystore.properties
-
-# Local data (library, HD video cache)
-server/data/
-server/cache/
-
-# Third-party agent skills
-.claude/
-.agents/
-
-# Misc
-*.log
+# Environment and secrets
 .env
+.env.local
+*.log
+
+# System files
 .DS_Store
 Thumbs.db
-
-# Explicitly keep release APK artifacts
-!release-apk/
-!release-apk/*.apk
-scratch/
