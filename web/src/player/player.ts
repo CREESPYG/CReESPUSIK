@@ -1,4 +1,4 @@
-﻿import { create } from "zustand";
+import { create } from "zustand";
 import { getT, useT } from "../i18n";
 import { api, capabilities, explainStreamError, streamSource, systemMedia, type ApiError, type ErrorCode } from "../lib/api";
 import { createAudio } from "../lib/audio";
@@ -310,8 +310,8 @@ export const usePlayer = create<PlayerState>((set, get) => {
       const currentTrack = s.queue[s.index];
       // YouTube Bot Check or Stream Error Fallback:
       // If YouTube blocks with bot check or stream refuses, seamlessly play via YouTube Player fallback engine!
-      if (currentTrack?.id && (code === "bot_check" || !capabilities.video)) {
-        console.warn("[Player] Stream refused (" + (code || "error") + "), engaging YouTube Player engine fallback...");
+      if (currentTrack?.id) {
+        console.warn("[Player] Stream refused (" + (code || message || "error") + "), engaging YouTube Player engine fallback...");
         media.removeAttribute("src");
         media.load();
         set({ status: "loading", statusText: null });

@@ -58,7 +58,7 @@ export class YtFallbackController {
       container = document.createElement("div");
       container.id = "yt-fallback-container";
       container.style.cssText =
-        "position: fixed; bottom: -9999px; left: -9999px; width: 1px; height: 1px; opacity: 0.001; pointer-events: none; z-index: -100;";
+        "position: fixed; top: 0; left: 0; width: 200px; height: 200px; opacity: 0.001; pointer-events: none; z-index: -999;";
       container.setAttribute("aria-hidden", "true");
       document.body.appendChild(container);
     }

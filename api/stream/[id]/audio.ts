@@ -15,33 +15,38 @@ export default async function handler(req: IncomingMessage & { query?: Record<st
     }
 
     const payload = {
+      videoId,
+      contentCheckOk: true,
+      racyCheckOk: true,
       context: {
         client: {
           clientName: "ANDROID",
           clientVersion: "20.10.38",
-          androidSdkVersion: 34,
+          androidSdkVersion: 30,
           hl: "en",
           gl: "US",
         },
       },
-      videoId,
     };
 
     const ytRes = await fetch("https://www.youtube.com/youtubei/v1/player?prettyPrint=false", {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
-        "User-Agent": "com.google.android.youtube/20.10.38 (Linux; U; Android 14; US; Pixel 7 Pro) gzip",
+        "content-type": "application/json",
+        "user-agent": "com.google.android.youtube/20.10.38 (Linux; U; Android 11) gzip",
         "x-goog-api-key": "AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w",
+        authorization: "AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w",
+        "x-youtube-client-name": "3",
+        "x-youtube-client-version": "20.10.38",
       },
       body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(12000),
     });
 
     if (!ytRes.ok) {
       res.statusCode = 502;
       res.setHeader("Content-Type", "application/json");
-      res.end(JSON.stringify({ error: "Upstream player API failed" }));
+      res.end(JSON.stringify({ error: "Upstream player API failed", code: "bot_check" }));
       return;
     }
 
@@ -51,16 +56,23 @@ export default async function handler(req: IncomingMessage & { query?: Record<st
       ...(data.streamingData?.formats ?? []),
     ].filter((f) => f.mimeType?.includes("audio") && typeof f.url === "string");
 
-    const best = formats.sort(
-      (a, b) =>
-        Number(b.mimeType?.startsWith("audio/mp4")) - Number(a.mimeType?.startsWith("audio/mp4")) ||
-        (b.bitrate ?? 0) - (a.bitrate ?? 0),
-    )[0];
+    // Pick itag 140 (AAC 128k - universally supported) first, else best m4a, else highest bitrate
+    const byItag = formats.find((f) => f.itag === 140);
+    const m4a = formats
+      .filter((f) => String(f.mimeType).includes("mp4"))
+      .sort((a, b) => (b.bitrate ?? 0) - (a.bitrate ?? 0));
+    const best = byItag || m4a[0] || formats.sort((a, b) => (b.bitrate ?? 0) - (a.bitrate ?? 0))[0];
 
     if (!best?.url) {
       res.statusCode = 404;
       res.setHeader("Content-Type", "application/json");
-      res.end(JSON.stringify({ error: "No audio stream format found" }));
+      res.end(
+        JSON.stringify({
+          error: data.playabilityStatus?.reason || "No audio stream format found",
+          status: data.playabilityStatus?.status,
+          code: "bot_check",
+        })
+      );
       return;
     }
 
