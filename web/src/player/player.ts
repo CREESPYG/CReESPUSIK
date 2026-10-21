@@ -78,6 +78,8 @@ let loaded: { id: string; kind: Kind; quality: Quality } | null = null;
 let pendingSeek = 0;
 let token = 0;
 let recordedToken = -1;
+let userWantsPlay = false;
+const prefetchedTracks = new Set<string>();
 
 const STORAGE_KEY = "musike:player";
 
@@ -192,6 +194,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
     loaded = { id: track.id, kind, quality: s.quality };
     pendingSeek = opts.startAt ?? 0;
     const autoplay = opts.autoplay !== false;
+    if (autoplay) userWantsPlay = true;
     set({
       index,
       mediaKind: kind,
@@ -344,17 +347,37 @@ export const usePlayer = create<PlayerState>((set, get) => {
       syncPlaybackState();
     });
     media.addEventListener("pause", () => {
-      if (!isActive() || media.ended || get().status === "loading" || get().status === "error") return;
+      if (!isActive() || media.ended) return;
+      // Guarantee: No auto-pause unless explicit pause action was taken by user!
+      if (userWantsPlay) {
+        play(media);
+        return;
+      }
       set({ status: "paused" });
       syncPlaybackState();
     });
     media.addEventListener("waiting", () => {
-      if (isActive() && !media.paused) set({ status: "loading" });
+      if (isActive() && userWantsPlay) set({ status: "loading" });
+    });
+    media.addEventListener("canplay", () => {
+      if (isActive() && userWantsPlay && media.paused) {
+        play(media);
+      }
     });
     media.addEventListener("timeupdate", () => {
       if (!isActive() || pendingSeek > 0) return;
       if (Math.abs(media.currentTime - get().position) >= 0.2) set({ position: media.currentTime });
       syncSystemMedia(); // throttled on the other side
+
+      // Zero-latency next track preload: prefetch next song in background
+      const s = get();
+      const nextTrack = s.queue[s.index + 1];
+      if (nextTrack?.id && media.duration && media.currentTime > media.duration * 0.4) {
+        if (!prefetchedTracks.has(nextTrack.id)) {
+          prefetchedTracks.add(nextTrack.id);
+          fetch(`/api/stream/${nextTrack.id}/audio`, { headers: { Range: "bytes=0-1024" } }).catch(() => {});
+        }
+      }
     });
     media.addEventListener("progress", () => {
       if (!isActive() || !media.buffered.length) return;
@@ -374,6 +397,10 @@ ytFallback.init({
     syncPlaybackState();
   },
   onPaused: () => {
+    if (userWantsPlay) {
+      ytFallback.resume();
+      return;
+    }
     usePlayer.setState({ status: "paused" });
     syncPlaybackState();
   },
@@ -436,6 +463,7 @@ ytFallback.init({
 
     playList: (tracks, start = 0) => {
       if (!tracks.length) return;
+      userWantsPlay = true;
       const first = tracks[start] ?? tracks[0];
       if (get().shuffle) {
         const rest = tracks.filter((_, i) => i !== start);
@@ -448,6 +476,7 @@ ytFallback.init({
     },
 
     playTrack: (track) => {
+      userWantsPlay = true;
       const s = get();
       const at = s.queue.findIndex((t) => t.id === track.id);
       if (at >= 0) return load(at);
@@ -517,10 +546,14 @@ ytFallback.init({
     toggle: () => {
       const s = get();
       if (ytFallback.isActive()) {
-        if (s.status === "playing") {
+        if (s.status === "playing" || userWantsPlay) {
+          userWantsPlay = false;
           ytFallback.pause();
+          set({ status: "paused" });
         } else {
+          userWantsPlay = true;
           ytFallback.resume();
+          set({ status: "playing" });
         }
         return;
       }
@@ -533,10 +566,18 @@ ytFallback.init({
         loaded.kind !== kind ||
         (kind === "video" && loaded.quality !== s.quality) ||
         needsClipLookup(track, s.preferVideo);
-      if (stale || s.status === "error") return load(s.index, { startAt: s.position });
+      if (stale || s.status === "error") {
+        userWantsPlay = true;
+        return load(s.index, { startAt: s.position });
+      }
       const media = mediaFor(kind);
-      if (media.paused) play(media);
-      else media.pause();
+      if (media.paused) {
+        userWantsPlay = true;
+        play(media);
+      } else {
+        userWantsPlay = false;
+        media.pause();
+      }
     },
 
     next: () => {

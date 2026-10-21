@@ -67,6 +67,9 @@ export default function App() {
       };
     },
     applyPlayback: (pb: PlaybackState) => {
+      // If remote has no valid song, NEVER pause or interfere with local music!
+      if (!pb || !pb.videoId || !pb.videoId.trim()) return;
+
       isApplyingRemoteRef.current = true;
       try {
         const s = usePlayer.getState();
@@ -74,8 +77,8 @@ export default function App() {
         if (!curr || curr.id !== pb.videoId) {
           s.playTrack({
             id: pb.videoId,
-            title: pb.title,
-            artist: pb.artist,
+            title: pb.title || "Track",
+            artist: pb.artist || "",
             album: "",
             duration: 0,
             thumb: pb.thumb || "",
@@ -83,12 +86,12 @@ export default function App() {
             kind: "song",
           });
         }
-        if (Math.abs(s.position - pb.position) > 2) {
+        if (pb.position && Math.abs(s.position - pb.position) > 2.5) {
           s.seek(pb.position);
         }
+        // ONLY sync play if remote is explicitly playing.
+        // Never auto-pause user's existing music when joining a room.
         if (pb.isPlaying && s.status !== "playing") {
-          s.toggle();
-        } else if (!pb.isPlaying && s.status === "playing") {
           s.toggle();
         }
       } finally {

@@ -4,7 +4,7 @@ import { mkdir, readdir, rename, rm, stat, utimes } from "node:fs/promises";
 import path from "node:path";
 import { ensureComponent } from "./bootstrap.js";
 import { config } from "./config.js";
-import { DEFAULT_CLIENTS, directAudio, fetchRemoteClients } from "./directAudio.js";
+import { DEFAULT_CLIENTS, directAudio, fetchAndroidDirectAudio, fetchRemoteClients } from "./directAudio.js";
 import { tools } from "./tools.js";
 import { msg } from "./i18n.js";
 import { HttpError } from "./types.js";
@@ -180,22 +180,41 @@ export function resolveStreams(id: string): Promise<Resolved> {
   const inflight = cache.get(id);
   if (inflight) return inflight;
 
-  const job = run(["-J", "--no-playlist", "--no-warnings", `https://www.youtube.com/watch?v=${id}`], RESOLVE_TIMEOUT_MS)
-    .then((stdout): Resolved => {
-      const info = JSON.parse(stdout) as { title: string; duration?: number; formats: RawFormat[] };
-      const audio = pickAudio(info.formats);
-      if (!audio) throw new HttpError(404, msg("noAudio"));
-      const video = pickVideo(info.formats);
-      return {
-        id,
-        title: info.title,
-        duration: info.duration ?? 0,
-        audio: toStream(audio, "audio"),
-        video: video ? toStream(video, "video") : undefined,
-        expiresAt: expiryOf(audio.url!),
-      };
-    })
-    .catch((err) => resolveDirect(id, err))
+  const job = (async (): Promise<Resolved> => {
+    // 1. Instant Android Innertube query (~150ms response, zero subprocess boot latency, bot-proof)
+    try {
+      const direct = await fetchAndroidDirectAudio(id);
+      if (direct?.url) {
+        return {
+          id,
+          title: direct.title,
+          duration: direct.duration,
+          audio: { formatId: "direct", url: direct.url, headers: {}, mime: direct.mime },
+          expiresAt: direct.expiresAt - 10 * 60_000,
+        };
+      }
+    } catch {
+      // Fallback to yt-dlp
+    }
+
+    // 2. Standard yt-dlp resolution
+    return run(["-J", "--no-playlist", "--no-warnings", `https://www.youtube.com/watch?v=${id}`], RESOLVE_TIMEOUT_MS)
+      .then((stdout): Resolved => {
+        const info = JSON.parse(stdout) as { title: string; duration?: number; formats: RawFormat[] };
+        const audio = pickAudio(info.formats);
+        if (!audio) throw new HttpError(404, msg("noAudio"));
+        const video = pickVideo(info.formats);
+        return {
+          id,
+          title: info.title,
+          duration: info.duration ?? 0,
+          audio: toStream(audio, "audio"),
+          video: video ? toStream(video, "video") : undefined,
+          expiresAt: expiryOf(audio.url!),
+        };
+      })
+      .catch((err) => resolveDirect(id, err));
+  })()
     .then((resolved) => {
       resolvedAt.set(id, resolved);
       return resolved;
