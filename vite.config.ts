@@ -19,8 +19,8 @@ function apiDevServer(): Plugin {
           const url = new URL(req.url, "http://localhost");
           const pathname = url.pathname;
 
-          if (pathname.startsWith("/api/stream/") && pathname.endsWith("/audio")) {
-            const { default: handler } = await import("./api/stream/[id]/audio");
+          if (pathname === "/api/stream" || (pathname.startsWith("/api/stream/") && pathname.endsWith("/audio"))) {
+            const { default: handler } = await import("./api/stream");
             return await handler(req as any, res as any);
           }
           if (pathname === "/api/search") {
@@ -35,8 +35,8 @@ function apiDevServer(): Plugin {
             const { default: handler } = await import("./api/genres");
             return await handler(req as any, res as any);
           }
-          if (pathname.startsWith("/api/radio/")) {
-            const { default: handler } = await import("./api/radio/[id]");
+          if (pathname === "/api/radio" || pathname.startsWith("/api/radio/")) {
+            const { default: handler } = await import("./api/radio");
             return await handler(req as any, res as any);
           }
         } catch (err: any) {

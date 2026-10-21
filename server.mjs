@@ -95,7 +95,7 @@ const server = createServer(async (req, res) => {
     try {
       const handlers = await getHandlers();
 
-      if (pathname.startsWith("/api/stream/") && pathname.endsWith("/audio")) {
+      if (pathname === "/api/stream" || (pathname.startsWith("/api/stream/") && pathname.endsWith("/audio"))) {
         return await handlers.streamHandler(req, res);
       }
       if (pathname === "/api/search") {
@@ -107,7 +107,7 @@ const server = createServer(async (req, res) => {
       if (pathname === "/api/genres") {
         return await handlers.genresHandler(req, res);
       }
-      if (pathname.startsWith("/api/radio/")) {
+      if (pathname === "/api/radio" || pathname.startsWith("/api/radio/")) {
         return await handlers.radioHandler(req, res);
       }
 

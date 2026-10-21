@@ -5,7 +5,15 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "/api/stream/:id/audio",
+      "destination": "/api/stream?id=:id"
+    },
+    {
+      "source": "/api/radio/:id",
+      "destination": "/api/radio?id=:id"
+    },
+    {
+      "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
   ]

@@ -1,0 +1,104 @@
+import type { IncomingMessage, ServerResponse } from "node:http";
+
+interface Track {
+  id: string;
+  title: string;
+  artist: string;
+  duration: number;
+  thumb: string;
+  art: string;
+  kind: "song" | "video";
+}
+
+function parseDuration(str?: string): number {
+  if (!str) return 0;
+  const parts = str.split(":").map(Number);
+  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  if (parts.length === 2) return parts[0] * 60 + parts[1];
+  return parts[0] || 0;
+}
+
+export default async function handler(req: IncomingMessage & { query?: Record<string, string> }, res: ServerResponse) {
+  try {
+    const url = new URL(req.url ?? "/", "http://localhost");
+    const parts = url.pathname.split("/").filter(Boolean);
+    const videoId = req.query?.id || url.searchParams.get("id") || parts[2] || parts[1] || "";
+
+    if (!videoId || !/^[A-Za-z0-9_-]{11}$/.test(videoId)) {
+      res.statusCode = 400;
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ error: "Invalid video id" }));
+      return;
+    }
+
+    const payload = {
+      context: {
+        client: {
+          clientName: "WEB_REMIX",
+          clientVersion: "1.20231204.01.00",
+          hl: "en",
+          gl: "US",
+        },
+      },
+      videoId,
+      enablePersistentPlaylistPanel: true,
+      isAudioOnly: true,
+    };
+
+    const nextRes = await fetch("https://music.youtube.com/youtubei/v1/next?prettyPrint=false", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        Referer: "https://music.youtube.com/",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!nextRes.ok) {
+      res.statusCode = 200;
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ tracks: [] }));
+      return;
+    }
+
+    const data: any = await nextRes.json();
+    const tabs = data?.contents?.singleColumnMusicWatchNextResultsRenderer?.tabbedRenderer?.watchNextTabbedResultsRenderer?.tabs;
+    const tab = tabs?.find((t: any) => t.tabRenderer?.title?.runs?.[0]?.text?.toLowerCase?.().includes("up next")) || tabs?.[0];
+    const items = tab?.tabRenderer?.content?.musicQueueRenderer?.content?.playlistPanelRenderer?.contents || [];
+
+    const tracks: Track[] = [];
+    for (const item of items) {
+      const r = item.playlistPanelVideoRenderer;
+      if (!r || !r.videoId || r.videoId === videoId) continue;
+
+      const title = r.title?.runs?.[0]?.text || "Unknown Track";
+      const artist = r.shortBylineText?.runs?.[0]?.text || "Unknown Artist";
+      const durationStr = r.lengthText?.runs?.[0]?.text;
+      const duration = parseDuration(durationStr);
+
+      tracks.push({
+        id: r.videoId,
+        title,
+        artist,
+        duration,
+        thumb: `https://i.ytimg.com/vi/${r.videoId}/default.jpg`,
+        art: `https://i.ytimg.com/vi/${r.videoId}/hq720.jpg`,
+        kind: "song",
+      });
+      if (tracks.length >= 25) break;
+    }
+
+    res.statusCode = 200;
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    res.end(JSON.stringify({ tracks }));
+  } catch (err: any) {
+    if (!res.headersSent) {
+      res.statusCode = 500;
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ error: err?.message || "Internal radio error" }));
+    }
+  }
+}
