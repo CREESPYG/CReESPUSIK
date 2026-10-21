@@ -174,12 +174,12 @@ export default function App() {
       const info = useSystem.getState().info;
       if (!info) return;
       const t = getT();
-      if (!info.ytdlp.path) {
+      if (!info.ytdlp?.path) {
         toast(t.toasts.ytdlpMissing, "error", { label: t.common.install, run: openSettings });
         return;
       }
-      const latest = info.ytdlp.latest[info.ytdlp.channel];
-      if (info.ytdlp.updateAvailable && latest) {
+      const latest = info.ytdlp?.latest?.[info.ytdlp?.channel];
+      if (info.ytdlp?.updateAvailable && latest) {
         try {
           if (sessionStorage.getItem("musike:update-notice") === latest) return;
           sessionStorage.setItem("musike:update-notice", latest);

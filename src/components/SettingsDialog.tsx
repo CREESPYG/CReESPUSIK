@@ -92,8 +92,8 @@ export function SettingsDialog() {
   }, [open, load]);
 
   useEffect(() => {
-    if (info) setChannel(info.ytdlp.channel);
-  }, [info?.ytdlp.channel]);
+    if (info?.ytdlp) setChannel(info.ytdlp.channel);
+  }, [info?.ytdlp?.channel]);
 
   const job = info?.job;
   const running = job?.status === "running";
@@ -104,8 +104,8 @@ export function SettingsDialog() {
 
   const y = info?.ytdlp;
   const missing = !!info && !y?.path;
-  const switching = !!y?.version && channel !== y.channel;
-  const target = y?.latest[channel];
+  const switching = !!y?.version && channel !== y?.channel;
+  const target = y?.latest?.[channel];
 
   let action: string;
   if (running) action = job?.kind === "install" ? t.settings.installing : t.settings.updating;

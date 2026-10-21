@@ -65,4 +65,4 @@ export const useSystem = create<SystemState>((set, get) => {
 
 /** Something needs the user's attention: missing tools or a newer yt-dlp. */
 export const needsAttention = (info: SystemInfo | null) =>
-  !!info && (!info.ytdlp.path || !info.deno || info.ytdlp.updateAvailable);
+  !!info?.ytdlp && (!info.ytdlp.path || !info.deno || !!info.ytdlp.updateAvailable);

@@ -11,6 +11,7 @@ import {
 import { useState, type ReactNode } from "react";
 import { NavLink, useNavigate } from "react-router";
 import { useT } from "../i18n";
+import { capabilities } from "../lib/api";
 import { cn } from "../lib/format";
 import { paths } from "../lib/routes";
 import { useAppearance } from "../stores/appearance";
@@ -33,8 +34,8 @@ function SettingsButton() {
   const t = useT();
   const info = useSystem((s) => s.info);
   const setOpen = useUi((s) => s.setSettingsOpen);
-  const attention = needsAttention(info);
-  const updatable = !!info?.ytdlp.updateAvailable || !info?.ytdlp.path;
+  const attention = capabilities.engineSettings && needsAttention(info);
+  const updatable = capabilities.engineSettings && (!!info?.ytdlp?.updateAvailable || !info?.ytdlp?.path);
   return (
     <button
       type="button"

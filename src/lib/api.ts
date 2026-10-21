@@ -279,7 +279,20 @@ export const api: MusikeApi = {
     };
   },
 
-  system: () => request<SystemInfo>("/api/system"),
+  system: async (): Promise<SystemInfo> => {
+    try {
+      const res = await request<SystemInfo>("/api/system");
+      if (res?.ytdlp) return res;
+    } catch {}
+    return {
+      version: "1.6.2",
+      arch: "web",
+      os: "web",
+      ytdlp: { path: "", version: "", channel: "stable", latest: { stable: "", nightly: "", master: "" }, updateAvailable: false },
+      deno: true,
+      ffmpeg: true,
+    } as any;
+  },
   updateYtdlp: (channel: Channel) => request<SystemJob>("/api/system/ytdlp", { method: "POST", json: { channel } }),
 };
 
@@ -301,7 +314,7 @@ export async function saveFile(name: string, text: string) {
 export const systemMedia: SystemMedia | null = null;
 
 /** What this build can do. The Android build has no video yet, no yt-dlp to manage, and retries expired streams. */
-export const capabilities = { video: false, engineSettings: true, retryOnError: false };
+export const capabilities = { video: false, engineSettings: false, retryOnError: false };
 
 /** Media elements hide the HTTP error body; fetch it to show the real reason. */
 export async function explainStreamError(url: string): Promise<{ message: string; code?: ErrorCode }> {
