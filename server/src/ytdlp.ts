@@ -166,7 +166,7 @@ async function resolveDirect(id: string, ytdlpError: unknown): Promise<Resolved>
       id,
       title: direct.title,
       duration: direct.duration,
-      audio: { formatId: "direct", url: direct.url, headers: {}, mime: direct.mime },
+      audio: { formatId: "direct", url: direct.url, headers: { "User-Agent": "com.google.android.youtube/20.10.38 (Linux; U; Android 14; US; Pixel 7 Pro) gzip" }, mime: direct.mime },
       expiresAt: direct.expiresAt - 10 * 60_000,
     };
   } catch {
@@ -189,7 +189,7 @@ export function resolveStreams(id: string): Promise<Resolved> {
           id,
           title: direct.title,
           duration: direct.duration,
-          audio: { formatId: "direct", url: direct.url, headers: {}, mime: direct.mime },
+          audio: { formatId: "direct", url: direct.url, headers: { "User-Agent": "com.google.android.youtube/20.10.38 (Linux; U; Android 14; US; Pixel 7 Pro) gzip" }, mime: direct.mime },
           expiresAt: direct.expiresAt - 10 * 60_000,
         };
       }
