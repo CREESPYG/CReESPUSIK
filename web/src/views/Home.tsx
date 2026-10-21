@@ -1,4 +1,4 @@
-import { AndroidLogoIcon, ClockCounterClockwiseIcon, DownloadSimpleIcon, HeartIcon, MagnifyingGlassIcon, PlayIcon } from "@phosphor-icons/react";
+import { ClockCounterClockwiseIcon, HeartIcon, MagnifyingGlassIcon, PlayIcon } from "@phosphor-icons/react";
 import type { ReactNode } from "react";
 import { Link, useNavigate } from "react-router";
 import { Artwork } from "../components/Artwork";
@@ -140,30 +140,7 @@ export default function Home() {
           )}
 
 
-          {/* Mobile APK Release Banner */}
-          <div className="mx-4 md:mx-6 rounded-2xl border border-line bg-gradient-to-r from-surface-2 to-surface-1 p-5 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3.5">
-              <div className="grid size-12 place-items-center rounded-2xl bg-accent/15 text-accent-text ring-1 ring-accent/30 shrink-0">
-                <AndroidLogoIcon size={28} weight="fill" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="font-bold text-fg text-sm sm:text-base">Download CReEPUSIK for Android</h3>
-                  <span className="rounded-full bg-accent/20 px-2 py-0.5 text-[10px] font-bold text-accent-text">v1.6.1</span>
-                </div>
-                <p className="text-xs text-fg-3 mt-0.5">Stream uninterrupted music, join live rooms & chat on the go</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <Link
-                to={paths.releases}
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-accent px-4 text-xs font-semibold text-accent-ink transition-transform hover:scale-105 active:scale-95 shadow-md shadow-accent/20"
-              >
-                <DownloadSimpleIcon size={16} weight="bold" />
-                View Release & APK
-              </Link>
-            </div>
-          </div>
+
           {show.homeFavorites && favorites.length > 0 && (
             <Section
               title={t.home.yourFavorites}

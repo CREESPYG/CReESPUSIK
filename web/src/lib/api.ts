@@ -1,4 +1,4 @@
-﻿import { getLang, getT } from "../i18n";
+import { getLang, getT } from "../i18n";
 import {
   ApiError,
   type Channel,
@@ -35,6 +35,29 @@ async function request<T>(path: string, init?: RequestInit & { json?: unknown })
   return body as T;
 }
 
+const LOCAL_LIB_KEY = "musike:local-library";
+
+function readLocalLib(): Library {
+  try {
+    const raw = localStorage.getItem(LOCAL_LIB_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return {
+        favorites: Array.isArray(parsed.favorites) ? parsed.favorites : [],
+        playlists: Array.isArray(parsed.playlists) ? parsed.playlists : [],
+        history: Array.isArray(parsed.history) ? parsed.history : [],
+      };
+    }
+  } catch {}
+  return { favorites: [], playlists: [], history: [] };
+}
+
+function writeLocalLib(lib: Library) {
+  try {
+    localStorage.setItem(LOCAL_LIB_KEY, JSON.stringify(lib));
+  } catch {}
+}
+
 export const api: MusikeApi = {
   search: (q: string, type: "song" | "video", signal?: AbortSignal) =>
     request<{ tracks: Track[] }>(`/api/search?q=${encodeURIComponent(q)}&type=${type}`, { signal }).then((r) => r.tracks),
@@ -60,22 +83,201 @@ export const api: MusikeApi = {
       signal,
     }),
 
-  library: () => request<Library>("/api/library"),
-  addFavorite: (t: Track) => request<{ favorites: Track[] }>(`/api/favorites/${t.id}`, { method: "PUT", json: t }),
-  addFavorites: (tracks: Track[]) => request<{ favorites: Track[] }>("/api/favorites", { method: "POST", json: { tracks } }),
-  removeFavorite: (id: string) => request<{ favorites: Track[] }>(`/api/favorites/${id}`, { method: "DELETE" }),
-  pushHistory: (t: Track) => request<{ history: Track[] }>("/api/history", { method: "POST", json: t }),
-  createPlaylist: (name: string, tracks: Track[] = []) =>
-    request<Playlist>("/api/playlists", { method: "POST", json: { name, tracks } }),
-  renamePlaylist: (id: string, name: string) => request<Playlist>(`/api/playlists/${id}`, { method: "PATCH", json: { name } }),
-  deletePlaylist: (id: string) => request<void>(`/api/playlists/${id}`, { method: "DELETE" }),
-  addToPlaylist: (id: string, t: Track | Track[]) =>
-    request<Playlist>(`/api/playlists/${id}/tracks`, { method: "POST", json: Array.isArray(t) ? { tracks: t } : t }),
-  removeFromPlaylist: (id: string, trackId: string) =>
-    request<Playlist>(`/api/playlists/${id}/tracks/${trackId}`, { method: "DELETE" }),
+  library: async () => {
+    try {
+      const remote = await request<Library>("/api/library");
+      if (remote && Array.isArray(remote.favorites)) {
+        writeLocalLib(remote);
+        return remote;
+      }
+    } catch {}
+    return readLocalLib();
+  },
+  addFavorite: async (t: Track) => {
+    try {
+      const res = await request<{ favorites: Track[] }>(`/api/favorites/${t.id}`, { method: "PUT", json: t });
+      if (res?.favorites) {
+        const lib = readLocalLib();
+        lib.favorites = res.favorites;
+        writeLocalLib(lib);
+        return res;
+      }
+    } catch {}
+    const lib = readLocalLib();
+    if (!lib.favorites.some((f) => f.id === t.id)) {
+      lib.favorites = [t, ...lib.favorites];
+      writeLocalLib(lib);
+    }
+    return { favorites: lib.favorites };
+  },
+  addFavorites: async (tracks: Track[]) => {
+    try {
+      const res = await request<{ favorites: Track[] }>("/api/favorites", { method: "POST", json: { tracks } });
+      if (res?.favorites) {
+        const lib = readLocalLib();
+        lib.favorites = res.favorites;
+        writeLocalLib(lib);
+        return res;
+      }
+    } catch {}
+    const lib = readLocalLib();
+    const existing = new Set(lib.favorites.map((f) => f.id));
+    const toAdd = tracks.filter((t) => !existing.has(t.id));
+    lib.favorites = [...toAdd, ...lib.favorites];
+    writeLocalLib(lib);
+    return { favorites: lib.favorites };
+  },
+  removeFavorite: async (id: string) => {
+    try {
+      const res = await request<{ favorites: Track[] }>(`/api/favorites/${id}`, { method: "DELETE" });
+      if (res?.favorites) {
+        const lib = readLocalLib();
+        lib.favorites = res.favorites;
+        writeLocalLib(lib);
+        return res;
+      }
+    } catch {}
+    const lib = readLocalLib();
+    lib.favorites = lib.favorites.filter((f) => f.id !== id);
+    writeLocalLib(lib);
+    return { favorites: lib.favorites };
+  },
+  pushHistory: async (t: Track) => {
+    try {
+      const res = await request<{ history: Track[] }>("/api/history", { method: "POST", json: t });
+      if (res?.history) {
+        const lib = readLocalLib();
+        lib.history = res.history;
+        writeLocalLib(lib);
+        return res;
+      }
+    } catch {}
+    const lib = readLocalLib();
+    lib.history = [t, ...lib.history.filter((h) => h.id !== t.id)].slice(0, 60);
+    writeLocalLib(lib);
+    return { history: lib.history };
+  },
+  createPlaylist: async (name: string, tracks: Track[] = []) => {
+    try {
+      const p = await request<Playlist>("/api/playlists", { method: "POST", json: { name, tracks } });
+      if (p) {
+        const lib = readLocalLib();
+        lib.playlists = [p, ...lib.playlists.filter((x) => x.id !== p.id)];
+        writeLocalLib(lib);
+        return p;
+      }
+    } catch {}
+    const lib = readLocalLib();
+    const now = Date.now();
+    const p: Playlist = {
+      id: "pl_" + now.toString(36) + "_" + Math.random().toString(36).slice(2, 6),
+      name,
+      tracks,
+      createdAt: now,
+      updatedAt: now,
+    };
+    lib.playlists = [p, ...lib.playlists];
+    writeLocalLib(lib);
+    return p;
+  },
+  renamePlaylist: async (id: string, name: string) => {
+    try {
+      const p = await request<Playlist>(`/api/playlists/${id}`, { method: "PATCH", json: { name } });
+      if (p) {
+        const lib = readLocalLib();
+        lib.playlists = lib.playlists.map((x) => (x.id === id ? p : x));
+        writeLocalLib(lib);
+        return p;
+      }
+    } catch {}
+    const lib = readLocalLib();
+    const target = lib.playlists.find((x) => x.id === id);
+    if (target) {
+      target.name = name;
+      target.updatedAt = Date.now();
+      writeLocalLib(lib);
+      return target;
+    }
+    const now = Date.now();
+    return { id, name, tracks: [], createdAt: now, updatedAt: now };
+  },
+  deletePlaylist: async (id: string) => {
+    try {
+      await request<void>(`/api/playlists/${id}`, { method: "DELETE" });
+    } catch {}
+    const lib = readLocalLib();
+    lib.playlists = lib.playlists.filter((x) => x.id !== id);
+    writeLocalLib(lib);
+  },
+  addToPlaylist: async (id: string, t: Track | Track[]) => {
+    try {
+      const p = await request<Playlist>(`/api/playlists/${id}/tracks`, { method: "POST", json: Array.isArray(t) ? { tracks: t } : t });
+      if (p) {
+        const lib = readLocalLib();
+        lib.playlists = lib.playlists.map((x) => (x.id === id ? p : x));
+        writeLocalLib(lib);
+        return p;
+      }
+    } catch {}
+    const lib = readLocalLib();
+    const target = lib.playlists.find((x) => x.id === id);
+    const toAdd = Array.isArray(t) ? t : [t];
+    if (target) {
+      target.tracks = [...target.tracks, ...toAdd];
+      target.updatedAt = Date.now();
+      writeLocalLib(lib);
+      return target;
+    }
+    const now = Date.now();
+    return { id, name: "Playlist", tracks: toAdd, createdAt: now, updatedAt: now };
+  },
+  removeFromPlaylist: async (id: string, trackId: string) => {
+    try {
+      const p = await request<Playlist>(`/api/playlists/${id}/tracks/${trackId}`, { method: "DELETE" });
+      if (p) {
+        const lib = readLocalLib();
+        lib.playlists = lib.playlists.map((x) => (x.id === id ? p : x));
+        writeLocalLib(lib);
+        return p;
+      }
+    } catch {}
+    const lib = readLocalLib();
+    const target = lib.playlists.find((x) => x.id === id);
+    if (target) {
+      target.tracks = target.tracks.filter((tr) => tr.id !== trackId);
+      target.updatedAt = Date.now();
+      writeLocalLib(lib);
+      return target;
+    }
+    const now = Date.now();
+    return { id, name: "Playlist", tracks: [], createdAt: now, updatedAt: now };
+  },
 
-  importLibrary: (backup: unknown, mode: "merge" | "replace") =>
-    request<ImportResult>("/api/library/import", { method: "POST", json: { backup, mode } }),
+  importLibrary: async (backup: unknown, mode: "merge" | "replace") => {
+    try {
+      const res = await request<ImportResult>("/api/library/import", { method: "POST", json: { backup, mode } });
+      if (res) return res;
+    } catch {}
+    const raw = (backup ?? {}) as any;
+    const lib = readLocalLib();
+    const newFavorites = Array.isArray(raw.favorites) ? raw.favorites : [];
+    const newPlaylists = Array.isArray(raw.playlists) ? raw.playlists : [];
+    if (mode === "replace") {
+      lib.favorites = newFavorites;
+      lib.playlists = newPlaylists;
+    } else {
+      const favIds = new Set(lib.favorites.map((f) => f.id));
+      lib.favorites = [...lib.favorites, ...newFavorites.filter((f: any) => !favIds.has(f.id))];
+      lib.playlists = [...lib.playlists, ...newPlaylists];
+    }
+    writeLocalLib(lib);
+    return {
+      favoritesAdded: newFavorites.length,
+      playlistsAdded: newPlaylists.length,
+      playlistsMerged: 0,
+      tracksAdded: 0,
+    };
+  },
 
   system: () => request<SystemInfo>("/api/system"),
   updateYtdlp: (channel: Channel) => request<SystemJob>("/api/system/ytdlp", { method: "POST", json: { channel } }),
