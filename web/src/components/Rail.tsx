@@ -1,4 +1,5 @@
 import {
+  AndroidLogoIcon,
   BooksIcon,
   ClockCounterClockwiseIcon,
   GearSixIcon,
@@ -170,7 +171,23 @@ export function Rail() {
           ))}
         </div>
 
-        <div className="flex border-t border-line p-2">
+        <div className="flex flex-col gap-1 border-t border-line p-2">
+          <NavLink
+            to={paths.releases}
+            className={({ isActive }) =>
+              cn(
+                "relative flex h-10 w-full items-center justify-center gap-2 rounded-full px-3 text-sm transition-colors wide:justify-start",
+                isActive ? "bg-surface-3 text-accent-text" : "text-fg-2 hover:bg-surface-3 hover:text-fg"
+              )
+            }
+            title="Download Android APK (v1.6.1)"
+          >
+            <AndroidLogoIcon size={19} weight="fill" className="text-accent-text shrink-0" />
+            <span className="hidden flex-1 text-left wide:inline font-medium">Get Android App</span>
+            <span className="hidden rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-semibold text-accent-text wide:inline">
+              v1.6.1
+            </span>
+          </NavLink>
           <SettingsButton />
         </div>
       </div>

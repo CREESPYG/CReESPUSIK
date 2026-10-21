@@ -1,4 +1,4 @@
-﻿import { useEffect, useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate, useNavigationType } from "react-router";
 import { AddToPlaylistDialog, ShortcutsDialog } from "./components/Dialogs";
 import { MiniPlayer, TabBar } from "./components/MobileChrome";
@@ -30,6 +30,7 @@ import Home from "./views/Home";
 import Library from "./views/Library";
 import Search from "./views/Search";
 import Rooms from "./views/Rooms";
+import Releases from "./views/Releases";
 import { useRoom } from "./hooks/useRoom";
 import { useRoomStore } from "./stores/roomStore";
 import { readInviteCode } from "./lib/room";
@@ -256,6 +257,7 @@ export default function App() {
               <Route path={paths.rooms} element={<Rooms />} />
               <Route path="/room/:code" element={<Rooms />} />
               <Route path="/rooms/:code" element={<Rooms />} />
+              <Route path={paths.releases} element={<Releases />} />
               <Route path={paths.favorites} element={<Collection kind="favorites" />} />
               <Route path={paths.history} element={<Collection kind="history" />} />
               <Route path="/playlist/:id" element={<Collection kind="playlist" />} />

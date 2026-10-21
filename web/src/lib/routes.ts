@@ -11,6 +11,7 @@ export const paths = {
   history: "/history",
   playlist: (id: string) => `/playlist/${id}`,
   rooms: '/rooms',
+  releases: '/releases',
 };
 
 /** Hash that opens the full-screen Now Playing sheet on phones (so Back closes it). */

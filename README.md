@@ -39,11 +39,11 @@ The latest production-ready signed APK is packaged directly in the repository:
 
 | File | Type | Signature | Size |
 |------|------|-----------|------|
-| [`CReEPUSIK-release-signed.apk`](https://github.com/CREESPYG/CReESPUSIK/releases/download/v1.6.1/CReEPUSIK-release-signed.apk) | **Production Release** | **v2 + v3 Signed** | `~3.9 MB` |
+| [`CReEPUSIK-release-signed.apk`](https://github.com/CREESPYG/CReESPUSIK/releases/download/v1.6.1/CReEPUSIK-release-signed.apk) | **Production Release** | **v2 + v3 Signed** | `~10.6 MB` |
 | [`CReEPUSIK-debug.apk`](https://github.com/CREESPYG/CReESPUSIK/releases/download/v1.6.1/CReEPUSIK-debug.apk) | Debug Build | Debug Keystore | `~5.5 MB` |
 
 ### 📲 How to Install on Android
-1. Download [`CReEPUSIK-release-signed.apk`](release-apk/CReEPUSIK-release-signed.apk) to your Android device.
+1. Download directly from the in-app [Releases page](/releases) or from [`release-apk/CReEPUSIK-release-signed.apk`](release-apk/CReEPUSIK-release-signed.apk).
 2. When prompted, tap **Install** (if prompted, allow *Install unknown apps* for your browser or file manager).
 3. Open **CReEPUSIK** and enjoy unlimited music streaming, background playback, and live listening rooms!
 
