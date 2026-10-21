@@ -7,6 +7,8 @@ import { selectCurrent, usePlayer, useStatusText } from "../player/player";
 import { Artwork } from "./Artwork";
 import { PlayPauseIcon } from "./Controls";
 
+import { useRoomStore } from "../stores/roomStore";
+
 const tabs = [
   { to: paths.home, key: "home", Icon: HouseIcon, end: true },
   { to: paths.search, key: "search", Icon: MagnifyingGlassIcon, end: false },
@@ -16,39 +18,56 @@ const tabs = [
 
 export function TabBar() {
   const t = useT();
+  const roomApi = useRoomStore((s) => s.roomApi);
+  const hasActiveRooms = Boolean((roomApi?.publicRooms?.length ?? 0) > 0);
+  const inRoom = Boolean(roomApi?.inRoom);
+
   return (
     <nav
       aria-label={t.nav.main}
       className="safe-bottom fixed inset-x-0 bottom-0 z-20 border-t border-line bg-bg/85 backdrop-blur-xl"
     >
       <ul className="mx-auto grid h-16 max-w-md grid-cols-4">
-        {tabs.map(({ to, key, Icon, end }) => (
-          <li key={to}>
-            <NavLink
-              to={to}
-              end={end}
-              className={({ isActive }) =>
-                cn(
-                  "relative flex h-full flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors",
-                  isActive ? "text-fg" : "text-fg-3",
-                )
-              }
-            >
-              {({ isActive }) => (
-                <>
-                  <span
-                    className={cn(
-                      "absolute top-0 h-[3px] w-8 rounded-b-full bg-accent transition-transform duration-300 ease-out-expo",
-                      isActive ? "scale-x-100" : "scale-x-0",
-                    )}
-                  />
-                  <Icon size={24} weight={isActive ? "fill" : "regular"} />
-                  {t.nav[key]}
-                </>
-              )}
-            </NavLink>
-          </li>
-        ))}
+        {tabs.map(({ to, key, Icon, end }) => {
+          const isRooms = key === "rooms";
+          return (
+            <li key={to}>
+              <NavLink
+                to={to}
+                end={end}
+                className={({ isActive }) =>
+                  cn(
+                    "relative flex h-full flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors",
+                    isActive ? "text-fg" : "text-fg-3",
+                  )
+                }
+              >
+                {({ isActive }) => (
+                  <>
+                    <span
+                      className={cn(
+                        "absolute top-0 h-[3px] w-8 rounded-b-full bg-accent transition-transform duration-300 ease-out-expo",
+                        isActive ? "scale-x-100" : "scale-x-0",
+                      )}
+                    />
+                    <span className="relative inline-flex items-center justify-center">
+                      <Icon size={24} weight={isActive ? "fill" : "regular"} />
+                      {isRooms && (hasActiveRooms || inRoom) && (
+                        <span className="absolute -top-0.5 -right-1.5 size-2 rounded-full bg-emerald-400 ring-2 ring-bg animate-pulse" />
+                      )}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      {t.nav[key]}
+                      {isRooms && hasActiveRooms && (
+                        <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      )}
+                    </span>
+                  </>
+                )}
+              </NavLink>
+            </li>
+          );
+        })}
       </ul>
     </nav>
   );

@@ -16,14 +16,14 @@ export const supabase: SupabaseClient = createClient(SUPABASE_URL, SUPABASE_KEY,
   auth: { persistSession: false },
   realtime: {
     params: {
-      eventsPerSecond: 50,
+      eventsPerSecond: 100,
     },
-    heartbeatIntervalMs: 5000,
+    heartbeatIntervalMs: 2500,
     reconnectAfterMs: (tries: number) => {
-      const delays = [100, 300, 750, 1500, 3000];
-      return delays[Math.min(tries - 1, delays.length - 1)] || 3000;
+      const delays = [50, 150, 400, 1000, 2000];
+      return delays[Math.min(tries - 1, delays.length - 1)] || 2000;
     },
-    timeout: 7000,
+    timeout: 5000,
   },
 });
 

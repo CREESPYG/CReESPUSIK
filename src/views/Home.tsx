@@ -1,4 +1,4 @@
-import { ClockCounterClockwiseIcon, HeartIcon, MagnifyingGlassIcon, PlayIcon } from "@phosphor-icons/react";
+import { BroadcastIcon, ClockCounterClockwiseIcon, HeartIcon, MagnifyingGlassIcon, PlayIcon } from "@phosphor-icons/react";
 import type { ReactNode } from "react";
 import { Link, useNavigate } from "react-router";
 import { Artwork } from "../components/Artwork";
@@ -11,6 +11,7 @@ import type { Track } from "../lib/types";
 import { usePlayer } from "../player/player";
 import { useAppearance } from "../stores/appearance";
 import { useLibrary } from "../stores/library";
+import { useRoomStore } from "../stores/roomStore";
 
 function Shortcut({ to, label, tracks, cover }: { to: string; label: string; tracks: Track[]; cover: ReactNode }) {
   const playList = usePlayer((s) => s.playList);
@@ -57,6 +58,9 @@ export default function Home() {
   const navigate = useNavigate();
   const t = useT();
   const show = useAppearance();
+  const roomApi = useRoomStore((s) => s.roomApi);
+  const publicRooms = roomApi?.publicRooms || [];
+  const inRoom = Boolean(roomApi?.inRoom);
   const empty = status === "ready" && !favorites.length && !playlists.length && !history.length;
 
   return (
@@ -66,6 +70,33 @@ export default function Home() {
       <div className="px-4 pt-2 pb-6 md:px-6 md:pt-8">
         <h1 className="text-[28px] leading-tight font-semibold tracking-tight md:text-4xl">{t.time.greeting(new Date().getHours())}</h1>
       </div>
+
+      {publicRooms.length > 0 && !inRoom && (
+        <div className="mx-4 mb-6 md:mx-6 flex items-center justify-between gap-3 p-3.5 sm:p-4 rounded-2xl bg-surface-2/90 border border-emerald-500/30 shadow-md backdrop-blur-md">
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="grid size-10 place-items-center rounded-xl bg-emerald-500/15 text-emerald-400 shrink-0">
+              <BroadcastIcon size={20} className="animate-pulse" />
+            </span>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-semibold text-fg truncate">Active Room Listening Session</h3>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 animate-pulse shrink-0">
+                  {publicRooms.length} {publicRooms.length === 1 ? "ROOM LIVE" : "ROOMS LIVE"}
+                </span>
+              </div>
+              <p className="text-xs text-fg-3 truncate mt-0.5">
+                Join &quot;{publicRooms[0].name}&quot; hosted by {publicRooms[0].hostName || "Host"}
+              </p>
+            </div>
+          </div>
+          <Link
+            to={paths.rooms}
+            className="shrink-0 h-9 px-4 rounded-xl bg-accent text-accent-ink font-semibold text-xs flex items-center gap-1.5 hover:brightness-105 active:scale-95 transition-all shadow-xs"
+          >
+            Join Live Room →
+          </Link>
+        </div>
+      )}
 
       {status === "loading" && <TrackListSkeleton rows={6} />}
 

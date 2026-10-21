@@ -1073,6 +1073,12 @@ export function useRoom(handlers: RoomHandlers) {
         });
       });
 
+      syncCh.on("broadcast", { event: "permissions" }, ({ payload }) => {
+        const next = payload as Permissions;
+        setPermissions(next);
+        permRef.current = next;
+      });
+
       ch.on("broadcast", { event: "permissions" }, ({ payload }) => {
         const next = payload as Permissions;
         setPermissions(next);
@@ -1521,6 +1527,7 @@ export function useRoom(handlers: RoomHandlers) {
     setPermissions(next);
     permRef.current = next;
     chanRef.current?.send({ type: "broadcast", event: "permissions", payload: next }).catch(() => {});
+    syncChanRef.current?.send({ type: "broadcast", event: "permissions", payload: next }).catch(() => {});
   }, []);
 
   const transferHost = useCallback((uid: string) => {

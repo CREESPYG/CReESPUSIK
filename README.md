@@ -6,7 +6,7 @@
 
 A state-of-the-art open-source music streaming web application and social listening platform. Stream any track with high fidelity, create synchronized listening rooms with live chat, discover community playlists synced across devices, and enjoy a sleek modern UI built with React 19, TypeScript, and Tailwind CSS.
 
-[![Latest Release](https://img.shields.io/badge/Release-v1.6.2-c3ec52?style=for-the-badge&logo=android&logoColor=black)](https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.6.2)
+[![Latest Release](https://img.shields.io/badge/Release-v1.6.5-c3ec52?style=for-the-badge&logo=android&logoColor=black)](https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.6.5)
 [![Platform](https://img.shields.io/badge/Platform-Web%20%7C%20PWA-121318?style=for-the-badge&logo=vite&logoColor=c3ec52)](https://github.com/CREESPYG/CReESPUSIK)
 [![React 19](https://img.shields.io/badge/React-19.3-121318?style=for-the-badge&logo=react&logoColor=61DAFB)](https://react.dev)
 [![Vercel Ready](https://img.shields.io/badge/Deploy-Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://vercel.com)
@@ -15,7 +15,7 @@ A state-of-the-art open-source music streaming web application and social listen
 
 <br/>
 
-[🚀 **Live Web App**](#-getting-started) &nbsp;•&nbsp; [📦 **GitHub Release & Android APK**](https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.6.2) &nbsp;•&nbsp; [✨ Features](#-key-features) &nbsp;•&nbsp; [🛠️ Tech Stack](#-technology-stack)
+[🚀 **Live Web App**](#-getting-started) &nbsp;•&nbsp; [📦 **GitHub Release & Android APK**](https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.6.5) &nbsp;•&nbsp; [✨ Features](#-key-features) &nbsp;•&nbsp; [🛠️ Tech Stack](#-technology-stack)
 
 </div>
 
@@ -24,7 +24,8 @@ A state-of-the-art open-source music streaming web application and social listen
 ## ⚡ Highlights
 
 - 🎧 **Ad-Free High-Fidelity Audio**: Pure, uninterrupted playback with zero commercials, background audio streaming, and instant play from playlists.
-- 👥 **Real-Time "Listen Together" Rooms**: Join or host live rooms with sub-millisecond synchronization powered by Supabase Realtime presence and broadcast channels.
+- 👥 **Real-Time "Listen Together" Rooms**: Join or host live rooms with zero lag and dual-channel permission synchronization powered by Supabase Realtime presence and broadcast channels.
+- 🔴 **Live Room Indications**: Live indicators on desktop rail, mobile tab bar, and home dashboard banner whenever rooms are active.
 - 💬 **Integrated Live Room Chat**: Communicate in real time with fellow listeners inside the room or via the global drawer from any screen.
 - 🌐 **Global (Community) Playlist Sync**: Create **Public (Global)** or **Private** playlists. Public playlists automatically sync to Supabase Cloud so other listeners worldwide can discover and play them.
 - 💾 **Persistent Web Library**: Client-side resilient library powered by `localStorage` mirroring — your favorites, playlists, and history are always preserved.
@@ -32,16 +33,16 @@ A state-of-the-art open-source music streaming web application and social listen
 
 ---
 
-## 📦 Android App Releases (v1.6.2)
+## 📦 Android App Releases (v1.6.5)
 
-Android APK builds are published directly in the **[GitHub Releases section](https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.6.2)**:
+Android APK builds are published directly in the **[GitHub Releases section](https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.6.5)**:
 
 | File | Type | Signature | Size | Download |
 |------|------|-----------|------|----------|
-| `CReEPUSIK-v1.6.2.apk` | **Production Release** | **v2 + v3 Signed** | `~10.6 MB` | [📥 Download via GitHub Release](https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.6.2) |
+| `CReEPUSIK-v1.6.5.apk` | **Production Release** | **v2 + v3 Signed** | `~10.6 MB` | [📥 Download via GitHub Release](https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.6.5) |
 
 ### 📲 How to Install on Android
-1. Download `CReEPUSIK-v1.6.2.apk` from the [GitHub Releases](https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.6.2) page.
+1. Download `CReEPUSIK-v1.6.5.apk` from the [GitHub Releases](https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.6.5) page.
 2. Tap **Install** (if prompted, allow *Install unknown apps* in your browser/file manager).
 3. Open **CReEPUSIK** and enjoy unlimited music streaming!
 

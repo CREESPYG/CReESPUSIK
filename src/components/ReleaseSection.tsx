@@ -3,10 +3,12 @@ import {
   ArrowSquareOutIcon,
   CheckCircleIcon,
   DownloadSimpleIcon,
+  GitBranchIcon,
   InfoIcon,
+  RocketLaunchIcon,
   ShieldCheckIcon,
 } from "@phosphor-icons/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { cn } from "../lib/format";
 
 export interface ReleaseSectionProps {
@@ -14,20 +16,128 @@ export interface ReleaseSectionProps {
   showTitle?: boolean;
 }
 
+const GITHUB_REPO_URL = "https://github.com/CREESPYG/CReESPUSIK";
+const GITHUB_RELEASE_URL = "https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.6.5";
+const GITHUB_APK_RAW_URL =
+  "https://github.com/CREESPYG/CReESPUSIK/releases/download/v1.6.5/CReEPUSIK-v1.6.5.apk";
+const DIRECT_APK_URL = "/downloads/CReEPUSIK-v1.6.5.apk";
+
 export function ReleaseSection({ className, showTitle = true }: ReleaseSectionProps) {
   const [copied, setCopied] = useState(false);
+  const [isApk, setIsApk] = useState(false);
 
-  const directApkUrl = "/downloads/CReEPUSIK-v1.6.2.apk";
-  const gitHubApkUrl =
-    "https://github.com/CREESPYG/CReESPUSIK/releases/download/v1.6.2/CReEPUSIK-v1.6.2.apk";
-  const gitHubReleaseUrl = "https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.6.2";
+  useEffect(() => {
+    // Detect whether running inside the Capacitor Android native shell or WebView
+    const isNative =
+      Boolean((window as any).Capacitor?.isNativePlatform?.()) ||
+      Boolean((window as any).Capacitor?.isPluginAvailable) ||
+      Boolean((window as any).musikePlayback) ||
+      Boolean((window as any).androidBridge) ||
+      /Android.*(wv|Version\/[\d.]+)/i.test(navigator.userAgent);
+    setIsApk(isNative);
+  }, []);
 
   const copyLink = () => {
-    navigator.clipboard.writeText(window.location.origin + directApkUrl);
+    navigator.clipboard.writeText(window.location.origin + DIRECT_APK_URL);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // If inside the Android APK settings, only show the changes, latest changelog, and git repo link
+  if (isApk) {
+    return (
+      <section className={cn("flex flex-col gap-3", className)}>
+        {showTitle && (
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="grid size-9 place-items-center rounded-xl bg-accent/15 text-accent-text ring-1 ring-accent/30">
+                <AndroidLogoIcon size={22} weight="fill" />
+              </div>
+              <div>
+                <h2 className="text-base font-semibold tracking-tight text-fg">App Updates & Changelog</h2>
+                <p className="text-xs text-fg-3">Running CReEPUSIK Android App</p>
+              </div>
+            </div>
+            <span className="flex items-center gap-1.5 rounded-full bg-accent/10 px-3 py-1 text-xs font-semibold text-accent-text ring-1 ring-accent/25">
+              <span className="size-2 rounded-full bg-accent animate-pulse" />
+              v1.6.5 Latest
+            </span>
+          </div>
+        )}
+
+        {/* In-APK Changelog & Updates Card */}
+        <div className="relative overflow-hidden rounded-2xl border border-line bg-surface-2/80 p-5 backdrop-blur-md shadow-xl">
+          <div className="flex items-center justify-between gap-3 border-b border-line/60 pb-3.5">
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-2">
+                <span className="text-base font-bold text-fg">CReEPUSIK for Android</span>
+                <span className="rounded-md bg-surface-4 px-2 py-0.5 text-[11px] font-mono font-medium text-accent-text">
+                  v1.6.5 (Build 10605)
+                </span>
+              </div>
+              <p className="text-xs text-fg-3">Real-time room synchronization & zero-latency release</p>
+            </div>
+            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-accent-text bg-accent/10 px-2.5 py-1 rounded-full">
+              <ShieldCheckIcon size={14} weight="fill" />
+              Latest Installed
+            </span>
+          </div>
+
+          {/* Latest Changelog List */}
+          <div className="mt-4 space-y-3">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-fg">
+              <RocketLaunchIcon size={16} className="text-accent-text" />
+              <span>What's New in v1.6.5</span>
+            </div>
+
+            <ul className="space-y-2 text-xs text-fg-2">
+              <li className="flex items-start gap-2 rounded-lg bg-surface-1/60 p-2.5">
+                <span className="mt-0.5 size-1.5 rounded-full bg-accent shrink-0" />
+                <div>
+                  <strong className="text-fg">Zero-Lag Realtime Room Control:</strong> Configured Supabase high-throughput pipeline (100 events/sec, 2.5s keepalive) with dual-channel broadcasting for instant host & guest permission updates.
+                </div>
+              </li>
+              <li className="flex items-start gap-2 rounded-lg bg-surface-1/60 p-2.5">
+                <span className="mt-0.5 size-1.5 rounded-full bg-accent shrink-0" />
+                <div>
+                  <strong className="text-fg">Live Room Activity Indicators:</strong> Real-time pulsating status indicators on the Navigation Rail, Mobile Tab Bar, and Home dashboard broadcast banner when rooms are active.
+                </div>
+              </li>
+              <li className="flex items-start gap-2 rounded-lg bg-surface-1/60 p-2.5">
+                <span className="mt-0.5 size-1.5 rounded-full bg-accent shrink-0" />
+                <div>
+                  <strong className="text-fg">Continuous Track Radio:</strong> Fixed track queue continuity and seamless playback transitions when initiating "Start Radio from Track".
+                </div>
+              </li>
+              <li className="flex items-start gap-2 rounded-lg bg-surface-1/60 p-2.5">
+                <span className="mt-0.5 size-1.5 rounded-full bg-accent shrink-0" />
+                <div>
+                  <strong className="text-fg">Android Native Notification Pipeline:</strong> Lock screen media controls with public channel notification visibility and background audio service.
+                </div>
+              </li>
+            </ul>
+          </div>
+
+          {/* Git Repo Link to check latest update */}
+          <div className="mt-5 pt-3.5 border-t border-line/50 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <span className="text-xs text-fg-3">Check releases, commits, and source code:</span>
+            <a
+              href={GITHUB_REPO_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-accent px-4 text-xs font-semibold text-accent-ink shadow-md transition-all hover:scale-[1.02] active:scale-[0.98]"
+            >
+              <GitBranchIcon size={16} weight="bold" />
+              Check Latest Update on GitHub
+              <ArrowSquareOutIcon size={13} />
+            </a>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  // Web view: Show full download section, changelog, and install guide
   return (
     <section className={cn("flex flex-col gap-4", className)}>
       {showTitle && (
@@ -43,7 +153,7 @@ export function ReleaseSection({ className, showTitle = true }: ReleaseSectionPr
           </div>
           <span className="flex items-center gap-1.5 rounded-full bg-accent/10 px-3 py-1 text-xs font-semibold text-accent-text ring-1 ring-accent/25">
             <span className="size-2 rounded-full bg-accent animate-pulse" />
-            v1.6.2 Latest
+            v1.6.5 Latest
           </span>
         </div>
       )}
@@ -57,7 +167,7 @@ export function ReleaseSection({ className, showTitle = true }: ReleaseSectionPr
             <div className="flex items-center gap-2">
               <span className="text-lg font-bold text-fg">CReEPUSIK for Android</span>
               <span className="rounded-md bg-surface-4 px-2 py-0.5 text-[11px] font-mono font-medium text-fg-2">
-                Build 10602
+                Build 10605
               </span>
             </div>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-fg-3">
@@ -74,8 +184,8 @@ export function ReleaseSection({ className, showTitle = true }: ReleaseSectionPr
 
           <div className="flex items-center gap-2">
             <a
-              href={directApkUrl}
-              download="CReEPUSIK-v1.6.2.apk"
+              href={DIRECT_APK_URL}
+              download="CReEPUSIK-v1.6.5.apk"
               className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-accent px-5 text-sm font-semibold text-accent-ink shadow-lg shadow-accent/20 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
             >
               <DownloadSimpleIcon size={18} weight="bold" />
@@ -88,19 +198,19 @@ export function ReleaseSection({ className, showTitle = true }: ReleaseSectionPr
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
           <div className="flex items-center gap-2 rounded-lg bg-surface-1/50 px-3 py-2 text-fg-2">
             <CheckCircleIcon size={16} weight="fill" className="shrink-0 text-accent-text" />
-            <span>Ad-free infinite music & background playback</span>
+            <span>Zero-lag real-time room control & sync</span>
           </div>
           <div className="flex items-center gap-2 rounded-lg bg-surface-1/50 px-3 py-2 text-fg-2">
             <CheckCircleIcon size={16} weight="fill" className="shrink-0 text-accent-text" />
-            <span>Real-time Listen Together rooms & synced chat</span>
+            <span>Live room activity indicators across app</span>
           </div>
           <div className="flex items-center gap-2 rounded-lg bg-surface-1/50 px-3 py-2 text-fg-2">
             <CheckCircleIcon size={16} weight="fill" className="shrink-0 text-accent-text" />
-            <span>Lock screen media notification controls</span>
+            <span>Continuous track radio & instant playback</span>
           </div>
           <div className="flex items-center gap-2 rounded-lg bg-surface-1/50 px-3 py-2 text-fg-2">
             <CheckCircleIcon size={16} weight="fill" className="shrink-0 text-accent-text" />
-            <span>YouTube bypass engine & offline caching</span>
+            <span>Ad-free background playback & lock screen notification</span>
           </div>
         </div>
 
@@ -109,7 +219,7 @@ export function ReleaseSection({ className, showTitle = true }: ReleaseSectionPr
           <div className="flex flex-wrap items-center gap-2 text-fg-3">
             <span>Mirror source:</span>
             <a
-              href={gitHubApkUrl}
+              href={GITHUB_APK_RAW_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-fg hover:text-accent-text hover:underline transition-colors"
@@ -119,12 +229,22 @@ export function ReleaseSection({ className, showTitle = true }: ReleaseSectionPr
             </a>
             <span>•</span>
             <a
-              href={gitHubReleaseUrl}
+              href={GITHUB_RELEASE_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-fg hover:text-accent-text hover:underline transition-colors"
             >
               GitHub Release Page
+              <ArrowSquareOutIcon size={13} />
+            </a>
+            <span>•</span>
+            <a
+              href={GITHUB_REPO_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-fg hover:text-accent-text hover:underline transition-colors"
+            >
+              GitHub Repo
               <ArrowSquareOutIcon size={13} />
             </a>
           </div>
@@ -147,7 +267,7 @@ export function ReleaseSection({ className, showTitle = true }: ReleaseSectionPr
         </div>
         <ol className="list-decimal list-inside space-y-1 text-fg-3 leading-relaxed">
           <li>Tap the <strong>Download APK</strong> button above to download the file directly to your phone.</li>
-          <li>Open your notification bar or Downloads folder and tap on <code className="rounded bg-surface-3 px-1 py-0.5 text-fg">CReEPUSIK-v1.6.2.apk</code>.</li>
+          <li>Open your notification bar or Downloads folder and tap on <code className="rounded bg-surface-3 px-1 py-0.5 text-fg">CReEPUSIK-v1.6.5.apk</code>.</li>
           <li>If prompted, tap <em>Settings</em> and allow <em>"Install unknown apps"</em> for your browser.</li>
           <li>Tap <strong>Install</strong>, then launch CReEPUSIK to start listening!</li>
         </ol>

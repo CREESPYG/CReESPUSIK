@@ -16,6 +16,7 @@ import { cn } from "../lib/format";
 import { paths } from "../lib/routes";
 import { useAppearance } from "../stores/appearance";
 import { useLibrary } from "../stores/library";
+import { useRoomStore } from "../stores/roomStore";
 import { needsAttention, useSystem } from "../stores/system";
 import { useUi } from "../stores/ui";
 import { Artwork } from "./Artwork";
@@ -103,6 +104,9 @@ export function Rail() {
   const createPlaylist = useLibrary((s) => s.createPlaylist);
   const navigate = useNavigate();
   const [creating, setCreating] = useState(false);
+  const roomApi = useRoomStore((s) => s.roomApi);
+  const hasActiveRooms = Boolean((roomApi?.publicRooms?.length ?? 0) > 0);
+  const inRoom = Boolean(roomApi?.inRoom);
 
   return (
     <aside className="island hidden w-[78px] shrink-0 md:flex wide:w-[256px]">
@@ -115,27 +119,40 @@ export function Rail() {
         </div>
 
         <nav aria-label={t.nav.main} className="flex flex-col gap-1 px-2">
-          {nav.map(({ to, key, Icon, end }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={end}
-              title={t.nav[key]}
-              className={({ isActive }) =>
-                cn(
-                  "flex h-11 items-center justify-center gap-3 rounded-full transition-colors duration-200 wide:justify-start wide:px-4 [@media(max-height:540px)]:h-9",
-                  isActive ? "bg-surface-4 text-fg" : "text-fg-2 hover:bg-surface-3 hover:text-fg",
-                )
-              }
-            >
-              {({ isActive }) => (
-                <>
-                  <Icon size={22} weight={isActive ? "fill" : "regular"} />
-                  <span className="hidden text-sm font-medium wide:inline">{t.nav[key]}</span>
-                </>
-              )}
-            </NavLink>
-          ))}
+          {nav.map(({ to, key, Icon, end }) => {
+            const isRooms = key === "rooms";
+            return (
+              <NavLink
+                key={to}
+                to={to}
+                end={end}
+                title={t.nav[key]}
+                className={({ isActive }) =>
+                  cn(
+                    "flex h-11 items-center justify-center gap-3 rounded-full transition-colors duration-200 wide:justify-start wide:px-4 [@media(max-height:540px)]:h-9",
+                    isActive ? "bg-surface-4 text-fg" : "text-fg-2 hover:bg-surface-3 hover:text-fg",
+                  )
+                }
+              >
+                {({ isActive }) => (
+                  <>
+                    <span className="relative inline-flex items-center justify-center">
+                      <Icon size={22} weight={isActive ? "fill" : "regular"} />
+                      {isRooms && (hasActiveRooms || inRoom) && (
+                        <span className="absolute -top-1 -right-1 size-2 rounded-full bg-emerald-400 ring-2 ring-surface-2 animate-pulse" />
+                      )}
+                    </span>
+                    <span className="hidden text-sm font-medium wide:inline">{t.nav[key]}</span>
+                    {isRooms && hasActiveRooms && (
+                      <span className="ml-auto hidden rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-bold text-emerald-400 animate-pulse wide:inline">
+                        LIVE
+                      </span>
+                    )}
+                  </>
+                )}
+              </NavLink>
+            );
+          })}
         </nav>
 
         <div className="mx-4 my-3 h-px bg-line [@media(max-height:540px)]:my-1.5" />
