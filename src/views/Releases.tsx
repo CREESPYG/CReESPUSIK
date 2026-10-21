@@ -31,11 +31,11 @@ export default function Releases() {
         {/* Release Section Component */}
         <ReleaseSection />
 
-        {/* Changelog for v1.6.1 */}
+        {/* Changelog for v1.6.2 */}
         <div className="rounded-2xl border border-line bg-surface-1/50 p-6 space-y-4">
           <div className="flex items-center gap-2">
             <RocketLaunchIcon size={20} className="text-accent-text" />
-            <h2 className="text-base font-semibold text-fg">What's New in Version 1.6.1</h2>
+            <h2 className="text-base font-semibold text-fg">What's New in Version 1.6.2</h2>
           </div>
 
           <ul className="space-y-2.5 text-xs text-fg-2">
