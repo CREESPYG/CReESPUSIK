@@ -41,6 +41,7 @@ export default async function handler(req: IncomingMessage & { query?: Record<st
         },
       },
       videoId,
+      playlistId: "RDAMVM" + videoId,
       enablePersistentPlaylistPanel: true,
       isAudioOnly: true,
     };
@@ -55,38 +56,38 @@ export default async function handler(req: IncomingMessage & { query?: Record<st
       body: JSON.stringify(payload),
     });
 
-    if (!nextRes.ok) {
-      res.statusCode = 200;
-      res.setHeader("Content-Type", "application/json");
-      res.end(JSON.stringify({ tracks: [] }));
-      return;
-    }
-
-    const data: any = await nextRes.json();
-    const tabs = data?.contents?.singleColumnMusicWatchNextResultsRenderer?.tabbedRenderer?.watchNextTabbedResultsRenderer?.tabs;
-    const tab = tabs?.find((t: any) => t.tabRenderer?.title?.runs?.[0]?.text?.toLowerCase?.().includes("up next")) || tabs?.[0];
-    const items = tab?.tabRenderer?.content?.musicQueueRenderer?.content?.playlistPanelRenderer?.contents || [];
-
     const tracks: Track[] = [];
-    for (const item of items) {
-      const r = item.playlistPanelVideoRenderer;
-      if (!r || !r.videoId || r.videoId === videoId) continue;
 
-      const title = r.title?.runs?.[0]?.text || "Unknown Track";
-      const artist = r.shortBylineText?.runs?.[0]?.text || "Unknown Artist";
-      const durationStr = r.lengthText?.runs?.[0]?.text;
-      const duration = parseDuration(durationStr);
+    if (nextRes.ok) {
+      const data: any = await nextRes.json();
+      const tabs = data?.contents?.singleColumnMusicWatchNextResultsRenderer?.tabbedRenderer?.watchNextTabbedResultsRenderer?.tabs;
+      const tab = tabs?.find((t: any) => {
+        const title = t.tabRenderer?.title;
+        const str = typeof title === "string" ? title : title?.runs?.[0]?.text;
+        return str?.toLowerCase?.()?.includes("up next");
+      }) || tabs?.[0];
+      const items = tab?.tabRenderer?.content?.musicQueueRenderer?.content?.playlistPanelRenderer?.contents || [];
 
-      tracks.push({
-        id: r.videoId,
-        title,
-        artist,
-        duration,
-        thumb: `https://i.ytimg.com/vi/${r.videoId}/default.jpg`,
-        art: `https://i.ytimg.com/vi/${r.videoId}/hq720.jpg`,
-        kind: "song",
-      });
-      if (tracks.length >= 25) break;
+      for (const item of items) {
+        const r = item.playlistPanelVideoRenderer;
+        if (!r || !r.videoId || r.videoId === videoId) continue;
+
+        const title = r.title?.runs?.[0]?.text || "Unknown Track";
+        const artist = r.shortBylineText?.runs?.[0]?.text || "Unknown Artist";
+        const durationStr = r.lengthText?.runs?.[0]?.text;
+        const duration = parseDuration(durationStr);
+
+        tracks.push({
+          id: r.videoId,
+          title,
+          artist,
+          duration,
+          thumb: `https://i.ytimg.com/vi/${r.videoId}/default.jpg`,
+          art: `https://i.ytimg.com/vi/${r.videoId}/hq720.jpg`,
+          kind: "song",
+        });
+        if (tracks.length >= 50) break;
+      }
     }
 
     res.statusCode = 200;

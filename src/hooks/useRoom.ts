@@ -1037,6 +1037,7 @@ export function useRoom(handlers: RoomHandlers) {
 
       syncCh.on("broadcast", { event: "queue_add" }, ({ payload }) => {
         if (roomRef.current?.hostId !== me.current && statusRef.current !== "hosting") return;
+        if (!permRef.current.add_song) return;
         const currentQueue = hRef.current.getQueue?.() || [];
         const incomingTrack = payload.track;
         if (!incomingTrack) return;
@@ -1181,7 +1182,7 @@ export function useRoom(handlers: RoomHandlers) {
       };
       setRoom(info);
       roomRef.current = info;
-      const perms = opts.type === "public" && opts.control === "shared" ? SHARED_PERMS : HOST_ONLY_PERMS;
+      const perms = opts.control === "shared" ? SHARED_PERMS : HOST_ONLY_PERMS;
       setPermissions(perms);
       permRef.current = perms;
       setChat([]);
@@ -1943,13 +1944,37 @@ export function useRoom(handlers: RoomHandlers) {
 
   /* ---------- derived ---------- */
   const inRoom = status === "hosting" || status === "member";
-  const canDrive = useMemo(() => {
+  const canPlayPause = useMemo(() => {
     if (!inRoom) return true;
     if (isHost) return true;
-    return permissions.play_pause;
-  }, [inRoom, isHost, permissions]);
+    return Boolean(permissions.play_pause);
+  }, [inRoom, isHost, permissions.play_pause]);
+
+  const canSeek = useMemo(() => {
+    if (!inRoom) return true;
+    if (isHost) return true;
+    return Boolean(permissions.seek);
+  }, [inRoom, isHost, permissions.seek]);
+
+  const canSkip = useMemo(() => {
+    if (!inRoom) return true;
+    if (isHost) return true;
+    return Boolean(permissions.next || permissions.play_pause);
+  }, [inRoom, isHost, permissions.next, permissions.play_pause]);
+
+  const canAddQueue = useMemo(() => {
+    if (!inRoom) return true;
+    if (isHost) return true;
+    return Boolean(permissions.add_song);
+  }, [inRoom, isHost, permissions.add_song]);
+
+  const canDrive = canPlayPause;
 
   const addQueueTrack = useCallback((track: any) => {
+    if (inRoom && !isHost && !permRef.current.add_song) {
+      hRef.current.onToast?.("🔒 Members cannot add tracks to the queue in this room");
+      return;
+    }
     const ch = syncChanRef.current || chanRef.current;
     if (!ch) return;
     if (roomRef.current?.hostId === me.current || statusRef.current === "hosting") {
@@ -1957,10 +1982,12 @@ export function useRoom(handlers: RoomHandlers) {
       const updated = [...current, track];
       hRef.current.applyQueue?.(updated);
       ch.send({ type: "broadcast", event: "queue_update", payload: updated }).catch(() => {});
+      hRef.current.onToast?.(`🎵 Added "${track.title || "Track"}" to room queue`);
     } else {
       ch.send({ type: "broadcast", event: "queue_add", payload: { track } }).catch(() => {});
+      hRef.current.onToast?.(`🎵 Requested "${track.title || "Track"}" to host queue`);
     }
-  }, []);
+  }, [inRoom, isHost]);
 
   const broadcastQueue = useCallback((queue: any[]) => {
     const ch = syncChanRef.current || chanRef.current;
@@ -1985,6 +2012,10 @@ export function useRoom(handlers: RoomHandlers) {
     connection,
     nickname,
     canDrive,
+    canPlayPause,
+    canSeek,
+    canSkip,
+    canAddQueue,
     publicRooms,
     voice,
     // debug/telemetry — read-only; not used to drive any behavior

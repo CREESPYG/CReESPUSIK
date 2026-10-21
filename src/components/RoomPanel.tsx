@@ -1,4 +1,4 @@
-﻿import {
+import {
   BroadcastIcon,
   ChatCircleDotsIcon,
   CheckIcon,
@@ -12,6 +12,7 @@
   SignOutIcon,
   SlidersHorizontalIcon,
   SparkleIcon,
+  UserMinusIcon,
   UsersIcon,
   XIcon,
 } from "@phosphor-icons/react";
@@ -42,6 +43,7 @@ function getAvatarStyle(name: string, isMe = false): React.CSSProperties {
 
 const PERM_LABELS: Array<[keyof RoomApi["permissions"], string]> = [
   ["play_pause", "Allow members to play & pause"],
+  ["next", "Allow members to skip tracks"],
   ["seek", "Allow members to seek track position"],
   ["add_song", "Allow members to queue tracks"],
 ];
@@ -608,11 +610,57 @@ export function RoomPanel({
                       </div>
                     </div>
 
-                    {isUserHost && (
-                      <span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 shrink-0">
-                        <CrownSimpleIcon size={12} weight="fill" /> Host
-                      </span>
-                    )}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {isUserHost && (
+                        <span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 shrink-0">
+                          <CrownSimpleIcon size={12} weight="fill" /> {m.role === "owner" ? "Owner" : "Co-Host"}
+                        </span>
+                      )}
+
+                      {isHost && !isMe && m.role !== "owner" && (
+                        <div className="flex items-center gap-1">
+                          {room.isOwner && (
+                            <>
+                              <button
+                                type="button"
+                                title={m.role === "host" ? "Demote to listener" : "Promote to Co-Host"}
+                                onClick={() => {
+                                  if (m.role === "host") room.demoteHost(m.id);
+                                  else room.promoteToHost(m.id);
+                                }}
+                                className="p-1 rounded-lg bg-surface-3 hover:bg-surface-2 text-fg-2 hover:text-accent border border-line text-[11px] transition-colors"
+                              >
+                                <SparkleIcon size={13} />
+                              </button>
+                              <button
+                                type="button"
+                                title="Transfer room ownership"
+                                onClick={() => {
+                                  if (window.confirm(`Transfer host of this room to ${m.nickname}?`)) {
+                                    room.transferHost(m.id);
+                                  }
+                                }}
+                                className="p-1 rounded-lg bg-surface-3 hover:bg-surface-2 text-fg-2 hover:text-amber-400 border border-line text-[11px] transition-colors"
+                              >
+                                <CrownSimpleIcon size={13} />
+                              </button>
+                            </>
+                          )}
+                          <button
+                            type="button"
+                            title="Remove listener"
+                            onClick={() => {
+                              if (window.confirm(`Remove ${m.nickname} from this room?`)) {
+                                room.kick(m.id, false);
+                              }
+                            }}
+                            className="p-1 rounded-lg bg-surface-3 hover:bg-red-500/20 text-fg-3 hover:text-red-400 border border-line text-[11px] transition-colors"
+                          >
+                            <UserMinusIcon size={13} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 );
               })}

@@ -11,13 +11,15 @@ import {
   SpeakerLowIcon,
   SpeakerXIcon,
 } from "@phosphor-icons/react";
-﻿import { useState } from "react";
+import { useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useT } from "../i18n";
 import { cn, formatTime } from "../lib/format";
 import type { Track } from "../lib/types";
 import { usePlayer } from "../player/player";
 import { useLibrary } from "../stores/library";
+import { useRoomStore } from "../stores/roomStore";
+import { toast } from "../stores/ui";
 import { IconButton, PlayDisc } from "./IconButton";
 import { Slider } from "./Slider";
 
@@ -31,6 +33,11 @@ export function PlayPauseIcon({ size = 22 }: { size?: number }) {
 
 export function Transport({ big = false }: { big?: boolean }) {
   const t = useT();
+  const roomApi = useRoomStore((s) => s.roomApi);
+  const inRoom = Boolean(roomApi?.inRoom);
+  const canPlayPause = inRoom ? Boolean(roomApi?.canPlayPause) : true;
+  const canSkip = inRoom ? Boolean(roomApi?.canSkip) : true;
+
   const p = usePlayer(
     useShallow((s) => ({
       hasQueue: s.queue.length > 0,
@@ -49,6 +56,30 @@ export function Transport({ big = false }: { big?: boolean }) {
   const repeatLabel = { off: t.player.repeatOff, all: t.player.repeatAll, one: t.player.repeatOne }[p.repeat];
   const iconSize = big ? 26 : 19;
 
+  const handleToggle = () => {
+    if (inRoom && !canPlayPause) {
+      toast("🔒 Playback control is locked for members in this room", "info");
+      return;
+    }
+    p.toggle();
+  };
+
+  const handlePrev = () => {
+    if (inRoom && !canSkip) {
+      toast("🔒 Skipping tracks is locked for members in this room", "info");
+      return;
+    }
+    p.prev();
+  };
+
+  const handleNext = () => {
+    if (inRoom && !canSkip) {
+      toast("🔒 Skipping tracks is locked for members in this room", "info");
+      return;
+    }
+    p.next();
+  };
+
   return (
     <div className={cn("flex items-center", big ? "justify-between" : "gap-2")}>
       <IconButton
@@ -61,18 +92,18 @@ export function Transport({ big = false }: { big?: boolean }) {
         <ShuffleIcon size={big ? 22 : 17} />
         {p.shuffle && <span className="absolute bottom-0.5 size-1 rounded-full bg-accent-text" />}
       </IconButton>
-      <IconButton label={t.player.previous} size={big ? "lg" : "md"} onClick={p.prev} disabled={!hasTrack} className="text-fg">
+      <IconButton label={t.player.previous} size={big ? "lg" : "md"} onClick={handlePrev} disabled={!hasTrack} className="text-fg">
         <SkipBackIcon size={iconSize} weight="fill" />
       </IconButton>
       <PlayDisc
         label={p.status === "playing" ? t.common.pause : t.common.play}
         px={big ? 72 : 40}
-        onClick={p.toggle}
+        onClick={handleToggle}
         disabled={!hasTrack}
       >
         <PlayPauseIcon size={big ? 30 : 20} />
       </PlayDisc>
-      <IconButton label={t.player.next} size={big ? "lg" : "md"} onClick={p.next} disabled={!hasTrack} className="text-fg">
+      <IconButton label={t.player.next} size={big ? "lg" : "md"} onClick={handleNext} disabled={!hasTrack} className="text-fg">
         <SkipForwardIcon size={iconSize} weight="fill" />
       </IconButton>
       <IconButton
@@ -91,6 +122,10 @@ export function Transport({ big = false }: { big?: boolean }) {
 
 export function Scrubber({ touch = false, className }: { touch?: boolean; className?: string }) {
   const t = useT();
+  const roomApi = useRoomStore((s) => s.roomApi);
+  const inRoom = Boolean(roomApi?.inRoom);
+  const canSeek = inRoom ? Boolean(roomApi?.canSeek) : true;
+
   const position = usePlayer((s) => s.position);
   const duration = usePlayer((s) => s.duration);
   const buffered = usePlayer((s) => s.buffered);
@@ -98,13 +133,21 @@ export function Scrubber({ touch = false, className }: { touch?: boolean; classN
   const [scrub, setScrub] = useState<number | null>(null);
   const shown = scrub ?? position;
 
+  const handleSeek = (seconds: number) => {
+    if (inRoom && !canSeek) {
+      toast("🔒 Seeking is locked for members in this room", "info");
+      return;
+    }
+    seek(seconds);
+  };
+
   const time = <span className="w-10 shrink-0 font-mono text-[11px] text-fg-3 tabular-nums">{formatTime(shown)}</span>;
   const total = <span className="w-10 shrink-0 text-right font-mono text-[11px] text-fg-3 tabular-nums">{formatTime(duration)}</span>;
 
   if (touch) {
     return (
       <div className={className}>
-        <Slider label={t.player.progress} value={position} max={duration} buffered={buffered} onChange={seek} onScrub={setScrub} showThumb step={5} valueText={formatTime} />
+        <Slider label={t.player.progress} value={position} max={duration} buffered={buffered} onChange={handleSeek} onScrub={setScrub} showThumb step={5} valueText={formatTime} />
         <div className="mt-0.5 flex justify-between">
           {time}
           {total}
@@ -115,7 +158,7 @@ export function Scrubber({ touch = false, className }: { touch?: boolean; classN
   return (
     <div className={cn("flex items-center gap-2", className)}>
       <span className="text-right">{time}</span>
-      <Slider label={t.player.progress} value={position} max={duration} buffered={buffered} onChange={seek} onScrub={setScrub} step={5} valueText={formatTime} className="flex-1" />
+      <Slider label={t.player.progress} value={position} max={duration} buffered={buffered} onChange={handleSeek} onScrub={setScrub} step={5} valueText={formatTime} className="flex-1" />
       {total}
     </div>
   );

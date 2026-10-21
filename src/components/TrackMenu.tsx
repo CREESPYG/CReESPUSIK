@@ -16,7 +16,8 @@ import { useT } from "../i18n";
 import { cn } from "../lib/format";
 import { usePlayer } from "../player/player";
 import { useLibrary } from "../stores/library";
-import { useUi } from "../stores/ui";
+import { useRoomStore } from "../stores/roomStore";
+import { toast, useUi } from "../stores/ui";
 import { Artwork } from "./Artwork";
 
 function Item({ icon, children, onClick, danger }: { icon: ReactNode; children: ReactNode; onClick: () => void; danger?: boolean }) {
@@ -74,16 +75,60 @@ export function TrackMenu() {
 
   const content = menu && (
     <div role="menu" aria-label={t.trackMenu.actionsFor(menu.track.title)} data-escape-closes className="flex flex-col">
-      <Item icon={<PlayIcon size={18} />} onClick={run(() => usePlayer.getState().playTrack(menu.track))}>
+      <Item
+        icon={<PlayIcon size={18} />}
+        onClick={run(() => {
+          const roomApi = useRoomStore.getState().roomApi;
+          if (roomApi?.inRoom && !roomApi.canPlayPause) {
+            toast("🔒 Only host can change playback in this room", "info");
+            return;
+          }
+          usePlayer.getState().playTrack(menu.track);
+        })}
+      >
         {t.trackMenu.playNow}
       </Item>
-      <Item icon={<QueueIcon size={18} />} onClick={run(() => usePlayer.getState().playNext(menu.track))}>
+      <Item
+        icon={<QueueIcon size={18} />}
+        onClick={run(() => {
+          const roomApi = useRoomStore.getState().roomApi;
+          if (roomApi?.inRoom && !roomApi.canAddQueue) {
+            toast("🔒 Only host can add tracks to the queue in this room", "info");
+            return;
+          }
+          if (roomApi?.inRoom) {
+            roomApi.addQueueTrack(menu.track);
+          } else {
+            usePlayer.getState().playNext(menu.track);
+          }
+        })}
+      >
         {t.trackMenu.playNext}
       </Item>
-      <Item icon={<ListPlusIcon size={18} />} onClick={run(() => usePlayer.getState().addToQueue(menu.track))}>
+      <Item
+        icon={<ListPlusIcon size={18} />}
+        onClick={run(() => {
+          const roomApi = useRoomStore.getState().roomApi;
+          if (roomApi?.inRoom) {
+            roomApi.addQueueTrack(menu.track);
+          } else {
+            usePlayer.getState().addToQueue(menu.track);
+          }
+        })}
+      >
         {t.trackMenu.addToQueue}
       </Item>
-      <Item icon={<RadioIcon size={18} />} onClick={run(() => void usePlayer.getState().startRadio(menu.track))}>
+      <Item
+        icon={<RadioIcon size={18} />}
+        onClick={run(() => {
+          const roomApi = useRoomStore.getState().roomApi;
+          if (roomApi?.inRoom && !roomApi.canPlayPause) {
+            toast("🔒 Only host can start radio for the room", "info");
+            return;
+          }
+          void usePlayer.getState().startRadio(menu.track);
+        })}
+      >
         {t.trackMenu.startRadio}
       </Item>
       <div className="mx-3 my-1 h-px bg-line" />

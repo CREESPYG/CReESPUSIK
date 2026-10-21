@@ -1,4 +1,4 @@
-﻿import {
+import {
   CaretDownIcon,
   MagnifyingGlassIcon,
   QueueIcon,
@@ -13,7 +13,8 @@ import { useT } from "../i18n";
 import { cn } from "../lib/format";
 import type { Track } from "../lib/types";
 import { selectCurrent, usePlayer, useStatusText } from "../player/player";
-import { useUi, type PanelTab } from "../stores/ui";
+import { useRoomStore } from "../stores/roomStore";
+import { toast, useUi, type PanelTab } from "../stores/ui";
 import { Artwork } from "./Artwork";
 import { FavoriteButton, Scrubber, Transport } from "./Controls";
 import { IconButton } from "./IconButton";
@@ -105,7 +106,14 @@ function PanelBody({ tab, slot }: { tab: PanelTab; slot: number }) {
       <TrackHeading track={track} />
       <button
         type="button"
-        onClick={() => void startRadio(track)}
+        onClick={() => {
+          const roomApi = useRoomStore.getState().roomApi;
+          if (roomApi?.inRoom && !roomApi.canPlayPause) {
+            toast("🔒 Only host can start radio for the room", "info");
+            return;
+          }
+          void startRadio(track);
+        }}
         className="flex h-11 items-center justify-center gap-2 rounded-full bg-surface-1 text-sm font-medium ring-1 ring-line transition-colors hover:bg-surface-3 active:scale-[0.98]"
       >
         <RadioIcon size={18} /> {t.nowPlaying.startRadio}

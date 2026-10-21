@@ -69,14 +69,21 @@ export default function App() {
       };
     },
     applyPlayback: (pb: PlaybackState) => {
-      // If remote has no valid song, NEVER pause or interfere with local music!
-      if (!pb || !pb.videoId || !pb.videoId.trim()) return;
+      if (!pb) return;
+      if (!pb.videoId || !pb.videoId.trim()) {
+        if (!pb.isPlaying) {
+          usePlayer.getState().pause();
+        }
+        return;
+      }
 
       isApplyingRemoteRef.current = true;
       try {
         const s = usePlayer.getState();
         const curr = s.queue[s.index];
-        if (!curr || curr.id !== pb.videoId) {
+        const isDifferentTrack = !curr || curr.id !== pb.videoId;
+
+        if (isDifferentTrack) {
           s.playTrack({
             id: pb.videoId,
             title: pb.title || "Track",
@@ -87,14 +94,27 @@ export default function App() {
             art: pb.thumb || "",
             kind: "song",
           });
-        }
-        if (pb.position && Math.abs(s.position - pb.position) > 2.5) {
-          s.seek(pb.position);
-        }
-        // ONLY sync play if remote is explicitly playing.
-        // Never auto-pause user's existing music when joining a room.
-        if (pb.isPlaying && s.status !== "playing") {
-          s.toggle();
+          if (!pb.isPlaying) {
+            s.pause();
+          }
+          if (pb.position && pb.position > 1) {
+            setTimeout(() => {
+              usePlayer.getState().seek(pb.position);
+            }, 300);
+          }
+        } else {
+          if (pb.isPlaying) {
+            if (s.status === "paused") {
+              s.play();
+            }
+          } else {
+            if (s.status === "playing" || s.status === "loading") {
+              s.pause();
+            }
+          }
+          if (typeof pb.position === "number" && Math.abs(s.position - pb.position) > 2.5) {
+            s.seek(pb.position);
+          }
         }
       } finally {
         setTimeout(() => {
@@ -103,6 +123,13 @@ export default function App() {
       }
     },
     getQueue: () => usePlayer.getState().queue,
+    applyQueue: (newQueue: any[]) => {
+      if (!Array.isArray(newQueue) || newQueue.length === 0) return;
+      const s = usePlayer.getState();
+      const curr = s.queue[s.index];
+      const newIndex = curr ? Math.max(0, newQueue.findIndex((t) => t.id === curr.id)) : 0;
+      usePlayer.setState({ queue: newQueue, original: newQueue, index: newIndex });
+    },
     onToast: (msg: string) => toast(msg, "info"),
   });
 
@@ -114,20 +141,26 @@ export default function App() {
   useEffect(() => {
     let lastTrackId = "";
     let lastStatus = "";
+    let lastQueueLen = 0;
     const unsub = usePlayer.subscribe((state) => {
       if (isApplyingRemoteRef.current) return;
       const roomApi = useRoomStore.getState().roomApi;
       if (!roomApi || !roomApi.inRoom) return;
-      if (!roomApi.canDrive) return;
 
       const curr = state.queue[state.index];
       const currId = curr?.id || "";
       const status = state.status;
+      const queueLen = state.queue.length;
 
-      if (currId !== lastTrackId || status !== lastStatus) {
+      if (roomApi.canDrive && (currId !== lastTrackId || status !== lastStatus)) {
         lastTrackId = currId;
         lastStatus = status;
         roomApi.pushPlayback();
+      }
+
+      if (roomApi.isHost && queueLen !== lastQueueLen) {
+        lastQueueLen = queueLen;
+        roomApi.broadcastQueue(state.queue);
       }
     });
     return unsub;

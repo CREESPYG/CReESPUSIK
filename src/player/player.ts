@@ -49,6 +49,8 @@ interface PlayerState {
   jumpTo: (i: number) => void;
   clearUpcoming: () => void;
   startRadio: (track: Track) => Promise<void>;
+  play: () => void;
+  pause: () => void;
   toggle: () => void;
   next: () => void;
   prev: () => void;
@@ -232,7 +234,11 @@ export const usePlayer = create<PlayerState>((set, get) => {
     set({ status: "loading", statusText: "fetchingRadio" });
     try {
       const known = new Set(get().queue.map((t) => t.id));
-      const more = (await api.radio(last.id)).filter((t) => !known.has(t.id)).slice(0, 25);
+      let more = (await api.radio(last.id)).filter((t) => !known.has(t.id)).slice(0, 25);
+      if (!more.length) {
+        const fallback = await api.search(last.artist || last.title, "song").catch(() => [] as Track[]);
+        more = fallback.filter((t: Track) => !known.has(t.id)).slice(0, 25);
+      }
       if (!more.length) throw new Error("empty");
       set((st) => ({
         queue: [...st.queue, ...more],
@@ -536,11 +542,58 @@ ytFallback.init({
     startRadio: async (track) => {
       toast(getT().player.startingRadio(track.title));
       try {
-        const related = await api.radio(track.id);
-        get().playList([track, ...related.filter((t) => t.id !== track.id)], 0);
+        let related = (await api.radio(track.id)).filter((t) => t.id !== track.id);
+        if (!related.length) {
+          const fallback = await api.search(track.artist || track.title, "song").catch(() => [] as Track[]);
+          related = fallback.filter((t: Track) => t.id !== track.id);
+        }
+        get().playList([track, ...related], 0);
       } catch (e) {
         toast((e as Error).message, "error");
       }
+    },
+
+    play: () => {
+      const s = get();
+      userWantsPlay = true;
+      if (ytFallback.isActive()) {
+        ytFallback.resume();
+        set({ status: "playing" });
+        return;
+      }
+      const track = s.queue[s.index];
+      if (!track) return;
+      const kind = kindFor(track);
+      const stale =
+        !loaded ||
+        loaded.id !== track.id ||
+        loaded.kind !== kind ||
+        (kind === "video" && loaded.quality !== s.quality) ||
+        needsClipLookup(track, s.preferVideo);
+      if (stale || s.status === "error") {
+        return load(s.index, { startAt: s.position });
+      }
+      const media = mediaFor(kind);
+      play(media);
+    },
+
+    pause: () => {
+      const s = get();
+      userWantsPlay = false;
+      if (ytFallback.isActive()) {
+        ytFallback.pause();
+        set({ status: "paused" });
+        return;
+      }
+      const track = s.queue[s.index];
+      if (!track) {
+        set({ status: "paused" });
+        return;
+      }
+      const kind = kindFor(track);
+      const media = mediaFor(kind);
+      media.pause();
+      set({ status: "paused" });
     },
 
     toggle: () => {

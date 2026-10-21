@@ -32,23 +32,26 @@ export default async function handler(req: IncomingMessage & { query?: Record<st
     }
 
     const payload = {
-      videoId,
       context: {
         client: {
-          clientName: "ANDROID",
-          clientVersion: "20.10.38",
+          clientName: "WEB_REMIX",
+          clientVersion: "1.20231204.01.00",
           hl: "en",
           gl: "US",
         },
       },
+      videoId,
+      playlistId: "RDAMVM" + videoId,
+      enablePersistentPlaylistPanel: true,
+      isAudioOnly: true,
     };
 
-    const nextRes = await fetch("https://www.youtube.com/youtubei/v1/next?prettyPrint=false", {
+    const nextRes = await fetch("https://music.youtube.com/youtubei/v1/next?prettyPrint=false", {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "user-agent": "com.google.android.youtube/20.10.38 (Linux; U; Android 11) gzip",
-        "x-goog-api-key": "AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        Referer: "https://music.youtube.com/",
       },
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(10000),
@@ -59,33 +62,40 @@ export default async function handler(req: IncomingMessage & { query?: Record<st
 
     if (nextRes.ok) {
       const data: any = await nextRes.json();
-      const items =
-        data.contents?.singleColumnWatchNextResults?.results?.results?.contents ||
-        data.contents?.sectionListRenderer?.contents ||
-        [];
+      const tabs = data?.contents?.singleColumnMusicWatchNextResultsRenderer?.tabbedRenderer?.watchNextTabbedResultsRenderer?.tabs;
+      const tab = tabs?.find((t: any) => {
+        const title = t.tabRenderer?.title;
+        const str = typeof title === "string" ? title : title?.runs?.[0]?.text;
+        return str?.toLowerCase?.()?.includes("up next");
+      }) || tabs?.[0];
+      const items = tab?.tabRenderer?.content?.musicQueueRenderer?.content?.playlistPanelRenderer?.contents || [];
 
       for (const item of items) {
-        const v =
-          item.itemSectionRenderer?.contents?.[0]?.compactVideoRenderer ||
-          item.compactVideoRenderer ||
-          item.videoRenderer;
-        if (!v?.videoId || seen.has(v.videoId)) continue;
-        seen.add(v.videoId);
+        const r = item.playlistPanelVideoRenderer;
+        if (!r || !r.videoId || seen.has(r.videoId)) continue;
+        seen.add(r.videoId);
+
+        const title = r.title?.runs?.[0]?.text || "Unknown Track";
+        const artist = r.shortBylineText?.runs?.[0]?.text || "Unknown Artist";
+        const durationStr = r.lengthText?.runs?.[0]?.text;
+        const duration = parseDuration(durationStr);
 
         tracks.push({
-          id: v.videoId,
-          title: v.title?.runs?.[0]?.text || "Untitled",
-          artist: v.shortBylineText?.runs?.[0]?.text || "",
-          duration: parseDuration(v.lengthText?.runs?.[0]?.text || v.lengthText?.simpleText),
-          thumb: v.thumbnail?.thumbnails?.[0]?.url || `https://i.ytimg.com/vi/${v.videoId}/mqdefault.jpg`,
-          art: `https://i.ytimg.com/vi/${v.videoId}/hq720.jpg`,
+          id: r.videoId,
+          title,
+          artist,
+          duration,
+          thumb: `https://i.ytimg.com/vi/${r.videoId}/default.jpg`,
+          art: `https://i.ytimg.com/vi/${r.videoId}/hq720.jpg`,
           kind: "song",
         });
+        if (tracks.length >= 50) break;
       }
     }
 
     res.statusCode = 200;
     res.setHeader("Content-Type", "application/json");
+    res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Cache-Control", "public, max-age=3600, s-maxage=3600");
     res.end(JSON.stringify({ tracks }));
   } catch {

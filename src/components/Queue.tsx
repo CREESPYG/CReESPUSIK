@@ -1,12 +1,20 @@
-﻿import { QueueIcon, XIcon } from "@phosphor-icons/react";
+import { QueueIcon, XIcon } from "@phosphor-icons/react";
 import { useT } from "../i18n";
 import { cn, formatTime } from "../lib/format";
 import { usePlayer } from "../player/player";
+import { useRoomStore } from "../stores/roomStore";
+import { toast } from "../stores/ui";
 import { Artwork } from "./Artwork";
 import { Equalizer } from "./Brand";
 
 export function QueueList({ compact = false }: { compact?: boolean }) {
   const t = useT();
+  const roomApi = useRoomStore((s) => s.roomApi);
+  const inRoom = Boolean(roomApi?.inRoom);
+  const isHost = Boolean(roomApi?.isHost);
+  const canPlay = inRoom ? Boolean(roomApi?.canPlayPause) : true;
+  const canControlQueue = inRoom ? isHost || Boolean(roomApi?.permissions.queue_control) : true;
+
   const queue = usePlayer((s) => s.queue);
   const index = usePlayer((s) => s.index);
   const live = usePlayer((s) => s.status === "playing" || s.status === "loading");
@@ -31,11 +39,35 @@ export function QueueList({ compact = false }: { compact?: boolean }) {
     );
   }
 
+  const handleJump = (i: number) => {
+    if (inRoom && !canPlay) {
+      toast("🔒 Playback control is locked for members in this room", "info");
+      return;
+    }
+    jumpTo(i);
+  };
+
+  const handleRemove = (i: number) => {
+    if (inRoom && !canControlQueue) {
+      toast("🔒 Queue modification is locked for members in this room", "info");
+      return;
+    }
+    removeAt(i);
+  };
+
+  const handleClear = () => {
+    if (inRoom && !canControlQueue) {
+      toast("🔒 Queue modification is locked for members in this room", "info");
+      return;
+    }
+    clearUpcoming();
+  };
+
   const row = (i: number, isCurrent: boolean) => {
     const track = queue[i];
     return (
       <li key={`${track.id}-${i}`} className="group relative flex items-center gap-3 rounded-xl px-2 py-1.5 hover:bg-surface-3 transition-colors" style={{ touchAction: "pan-y" }}>
-        <button type="button" onClick={() => jumpTo(i)} className="absolute inset-0 rounded-xl" style={{ touchAction: "pan-y" }} aria-label={t.common.playX(track.title)} />
+        <button type="button" onClick={() => handleJump(i)} className="absolute inset-0 rounded-xl" style={{ touchAction: "pan-y" }} aria-label={t.common.playX(track.title)} />
         <Artwork src={track.thumb} className="pointer-events-none size-10 rounded-[8px]" />
         <div className="pointer-events-none min-w-0 flex-1">
           <p className={cn("truncate text-sm font-medium", isCurrent ? "text-accent-text" : "text-fg")}>{track.title}</p>
@@ -50,7 +82,7 @@ export function QueueList({ compact = false }: { compact?: boolean }) {
             </span>
             <button
               type="button"
-              onClick={() => removeAt(i)}
+              onClick={() => handleRemove(i)}
               aria-label={t.queue.removeX(track.title)}
               title={t.queue.remove}
               className="relative z-10 hidden size-8 place-items-center rounded-full text-fg-2 hover:bg-surface-4 hover:text-fg group-hover:grid max-md:grid"
@@ -76,7 +108,7 @@ export function QueueList({ compact = false }: { compact?: boolean }) {
             {t.queue.upNext} <span className="font-mono">{upcoming.length}</span>
           </h3>
           {upcoming.length > 0 && (
-            <button type="button" onClick={clearUpcoming} className="text-xs font-medium text-fg-2 hover:text-fg">
+            <button type="button" onClick={handleClear} className="text-xs font-medium text-fg-2 hover:text-fg">
               {t.queue.clear}
             </button>
           )}
