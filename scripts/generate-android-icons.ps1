@@ -50,7 +50,10 @@ function Resize-Image {
     Write-Host "Created: $destPath ($($targetWidth)x$($targetHeight))"
 }
 
-$resDir = "$PSScriptRoot\..\android\app\src\main\res"
+$resDirs = @(
+    "$PSScriptRoot\..\android\app\src\main\res",
+    "$PSScriptRoot\..\mobile\android\app\src\main\res"
+)
 
 $densities = @(
     @{ Name = "mipmap-mdpi";    Legacy = 48;  Fg = 108 },
@@ -59,21 +62,6 @@ $densities = @(
     @{ Name = "mipmap-xxhdpi";  Legacy = 144; Fg = 324 },
     @{ Name = "mipmap-xxxhdpi"; Legacy = 192; Fg = 432 }
 )
-
-foreach ($d in $densities) {
-    $folder = Join-Path $resDir $d.Name
-    
-    # Standard legacy launcher icon
-    Resize-Image -source $srcImg -targetWidth $d.Legacy -targetHeight $d.Legacy -destPath (Join-Path $folder "ic_launcher.png")
-    
-    # Round legacy launcher icon
-    Resize-Image -source $srcImg -targetWidth $d.Legacy -targetHeight $d.Legacy -destPath (Join-Path $folder "ic_launcher_round.png")
-    
-    # Adaptive icon foreground (safe zone is ~70% centered)
-    Resize-Image -source $srcImg -targetWidth $d.Fg -targetHeight $d.Fg -destPath (Join-Path $folder "ic_launcher_foreground.png") -scaleFactor 0.72
-}
-
-# Splash screen images
 $splashDensities = @(
     @{ Path = "drawable\splash.png";                 W = 480;  H = 800 },
     @{ Path = "drawable-port-mdpi\splash.png";        W = 320;  H = 480 },
@@ -88,31 +76,48 @@ $splashDensities = @(
     @{ Path = "drawable-land-xxxhdpi\splash.png";     W = 1920; H = 1280 }
 )
 
-foreach ($s in $splashDensities) {
-    $dest = Join-Path $resDir $s.Path
-    # Create dark background splash with centered icon
-    $splashBmp = New-Object System.Drawing.Bitmap($s.W, $s.H, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
-    $sg = [System.Drawing.Graphics]::FromImage($splashBmp)
-    $sg.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
-    $sg.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
-    $sg.Clear([System.Drawing.Color]::FromArgb(255, 11, 12, 15)) # #0b0c0f
+foreach ($resDir in $resDirs) {
+    if (-not (Test-Path $resDir)) { continue }
 
-    $iconDim = [Math]::Min($s.W, $s.H) * 0.35
-    $iconX = [int](($s.W - $iconDim) / 2)
-    $iconY = [int](($s.H - $iconDim) / 2)
-    $sg.DrawImage($srcImg, $iconX, $iconY, [int]$iconDim, [int]$iconDim)
-    $sg.Dispose()
+    foreach ($d in $densities) {
+        $folder = Join-Path $resDir $d.Name
+        
+        # Standard legacy launcher icon
+        Resize-Image -source $srcImg -targetWidth $d.Legacy -targetHeight $d.Legacy -destPath (Join-Path $folder "ic_launcher.png")
+        
+        # Round legacy launcher icon
+        Resize-Image -source $srcImg -targetWidth $d.Legacy -targetHeight $d.Legacy -destPath (Join-Path $folder "ic_launcher_round.png")
+        
+        # Adaptive icon foreground (safe zone is ~70% centered)
+        Resize-Image -source $srcImg -targetWidth $d.Fg -targetHeight $d.Fg -destPath (Join-Path $folder "ic_launcher_foreground.png") -scaleFactor 0.72
+    }
 
-    $destDir = [System.IO.Path]::GetDirectoryName($dest)
-    if (-not (Test-Path $destDir)) {
-        New-Item -ItemType Directory -Path $destDir -Force | Out-Null
+    foreach ($s in $splashDensities) {
+        $dest = Join-Path $resDir $s.Path
+        # Create dark background splash with centered icon
+        $splashBmp = New-Object System.Drawing.Bitmap($s.W, $s.H, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+        $sg = [System.Drawing.Graphics]::FromImage($splashBmp)
+        $sg.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+        $sg.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
+        $sg.Clear([System.Drawing.Color]::FromArgb(255, 11, 12, 15)) # #0b0c0f
+
+        $iconDim = [Math]::Min($s.W, $s.H) * 0.35
+        $iconX = [int](($s.W - $iconDim) / 2)
+        $iconY = [int](($s.H - $iconDim) / 2)
+        $sg.DrawImage($srcImg, $iconX, $iconY, [int]$iconDim, [int]$iconDim)
+        $sg.Dispose()
+
+        $destDir = [System.IO.Path]::GetDirectoryName($dest)
+        if (-not (Test-Path $destDir)) {
+            New-Item -ItemType Directory -Path $destDir -Force | Out-Null
+        }
+        if (Test-Path $dest) {
+            Remove-Item $dest -Force
+        }
+        $splashBmp.Save($dest, [System.Drawing.Imaging.ImageFormat]::Png)
+        $splashBmp.Dispose()
+        Write-Host "Created splash: $dest"
     }
-    if (Test-Path $dest) {
-        Remove-Item $dest -Force
-    }
-    $splashBmp.Save($dest, [System.Drawing.Imaging.ImageFormat]::Png)
-    $splashBmp.Dispose()
-    Write-Host "Created splash: $dest"
 }
 
 $srcImg.Dispose()
