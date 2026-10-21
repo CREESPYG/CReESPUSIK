@@ -1,0 +1,22 @@
+# Musike on any machine with Docker: docker compose up -d, then open http://<this machine>:4180
+services:
+  musike:
+    image: ghcr.io/ernani1234/musike:latest
+    # Or build it from this folder instead:
+    # build: .
+    container_name: musike
+    ports:
+      - "4180:4180"
+    volumes:
+      - musike-data:/data # library: playlists, favorites, history
+      - musike-cache:/cache # HD videos already downloaded
+    environment:
+      # Optional, see the README: cookies for YouTube's bot checks, region for search results.
+      # YTDLP_EXTRA_ARGS: "--cookies /data/cookies.txt"
+      # MUSIKE_LOCATION: "US"
+      MUSIKE_CACHE_MAX_MB: "2048"
+    restart: unless-stopped
+
+volumes:
+  musike-data:
+  musike-cache:

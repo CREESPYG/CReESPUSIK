@@ -1,0 +1,146 @@
+/* Android TV (10-foot) tweaks. Loaded only when html[data-tv="1"] is set. */
+
+html[data-tv="1"] {
+  --tv-ring: #b6f36a;
+  --tv-ring-soft: rgba(182, 243, 106, 0.35);
+  font-size: 130%;
+  scroll-behavior: smooth;
+}
+
+html[data-tv="1"] body {
+  overflow: hidden;
+  cursor: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* One clear, animated focus ring. */
+html[data-tv="1"] :focus {
+  outline: 3px solid var(--tv-ring) !important;
+  outline-offset: 2px !important;
+  border-radius: 14px;
+  box-shadow: 0 0 0 6px var(--tv-ring-soft), 0 18px 40px rgba(0, 0, 0, 0.45) !important;
+  transform: scale(1.035);
+  transition: transform 130ms ease-out, box-shadow 130ms ease-out, outline-color 130ms ease-out;
+  z-index: 3;
+}
+
+html[data-tv="1"] *:hover {
+  transform: none !important;
+}
+
+html[data-tv="1"] ::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+/* ---- left rail (sidebar) -------------------------------------------------
+   The rail is a fixed 78px column: icons must stay square, centred and never
+   overlap, so the global min-size rules are undone here. */
+html[data-tv="1"] aside.island {
+  min-width: 84px !important;
+  width: 84px !important;
+}
+
+html[data-tv="1"] aside.island > div {
+  padding-block: 6px;
+}
+
+html[data-tv="1"] aside.island nav {
+  gap: 8px !important;
+  padding-inline: 12px !important;
+}
+
+html[data-tv="1"] aside.island button,
+html[data-tv="1"] aside.island a {
+  min-width: 0 !important;
+  min-height: 0 !important;
+  width: 100% !important;
+  height: 46px !important;
+  padding: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 0 !important;
+  border-radius: 14px;
+}
+
+html[data-tv="1"] aside.island button svg,
+html[data-tv="1"] aside.island a svg {
+  width: 22px !important;
+  height: 22px !important;
+  flex: none;
+}
+
+/* The rail never scales on focus: a lifted row would touch its neighbours. */
+html[data-tv="1"] aside.island :focus {
+  transform: none;
+  box-shadow: 0 0 0 3px var(--tv-ring-soft) !important;
+  outline-offset: 0 !important;
+}
+
+/* logo mark */
+html[data-tv="1"] aside.island .size-8 {
+  width: 26px !important;
+  height: 26px !important;
+}
+
+/* ---- content ------------------------------------------------------------- */
+html[data-tv="1"] main button,
+html[data-tv="1"] main [role="button"],
+html[data-tv="1"] main a[href] {
+  min-width: 48px;
+  min-height: 48px;
+}
+
+html[data-tv="1"] ul,
+html[data-tv="1"] ol {
+  row-gap: 10px;
+}
+
+html[data-tv="1"] li {
+  padding-block: 2px;
+}
+
+html[data-tv="1"] h1,
+html[data-tv="1"] h2 {
+  letter-spacing: -0.01em;
+}
+
+html[data-tv="1"] small {
+  color: color-mix(in oklab, currentColor 78%, white);
+}
+
+html[data-tv="1"] input[type="search"],
+html[data-tv="1"] input[type="text"] {
+  font-size: 1.05em;
+  padding-block: 0.6em;
+}
+
+/* ---- dialogs / sheets ----------------------------------------------------
+   On TV a sheet is a centred panel with its own scrolling; navigation is
+   trapped inside it by tvMode.ts while it is open. */
+html[data-tv="1"] [role="dialog"] {
+  max-width: min(1100px, 78vw) !important;
+  max-height: 80vh !important;
+  overflow-y: auto !important;
+  border-radius: 22px !important;
+  margin: auto !important;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6) !important;
+}
+
+html[data-tv="1"] [role="dialog"] h2 {
+  font-size: 1.35em;
+}
+
+html[data-tv="1"] [role="dialog"] li,
+html[data-tv="1"] [role="dialog"] button,
+html[data-tv="1"] [role="dialog"] [role="radio"] {
+  border-radius: 14px;
+}
+
+/* keep list entries apart so the focus ring has room */
+html[data-tv="1"] [role="dialog"] ul {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}

@@ -1,0 +1,17 @@
+# Only sources go into the build; dependencies are installed inside it.
+**/node_modules
+**/dist
+**/dev-dist
+**/dist-native
+mobile/android
+mobile/release
+desktop/release
+server/data
+server/cache
+docs
+.git
+.github
+.claude
+.agents
+*.log
+.env
