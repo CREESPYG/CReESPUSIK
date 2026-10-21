@@ -783,6 +783,7 @@ document.addEventListener("visibilitychange", () => document.visibilityState ===
 
 function setMetadata(track: Track) {
   systemMedia?.setTrack({ title: track.title, artist: track.artist, album: track.album ?? "", artwork: track.art || track.thumb });
+  syncSystemMedia();
   if (!("mediaSession" in navigator)) return;
   navigator.mediaSession.metadata = new MediaMetadata({
     title: track.title,
@@ -828,8 +829,8 @@ function syncPositionState() {
 if (systemMedia) {
   const p = () => usePlayer.getState();
   systemMedia.onAction((action, position) => {
-    if (action === "play" && p().status !== "playing") p().toggle();
-    else if (action === "pause" && p().status === "playing") p().toggle();
+    if (action === "play") p().play();
+    else if (action === "pause") p().pause();
     else if (action === "next") p().next();
     else if (action === "previous") p().prev();
     else if (action === "seek" && position != null) p().seek(position);

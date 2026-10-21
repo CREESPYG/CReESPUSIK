@@ -9,12 +9,16 @@ import { desktop } from "./lib/desktop";
 import "./styles.css";
 import "./tv/tv.css";
 import { installTvMode } from "./tv/tvMode";
+import { initNativeBridge } from "./lib/androidBridge";
 
 // The desktop app ships its files locally; a service worker would only risk serving an old version after updates.
 if (!desktop) registerSW({ immediate: true });
 
 // Android TV: spatial D-pad navigation + 10-foot styling (no-op elsewhere).
 installTvMode();
+
+// Native Android: back button minimization and background keep-alive hooks
+initNativeBridge();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

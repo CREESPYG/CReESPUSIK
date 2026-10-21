@@ -310,6 +310,35 @@ export async function saveFile(name: string, text: string) {
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
+import { registerPlugin, type PluginListenerHandle } from "@capacitor/core";
+
+interface PlaybackPlugin {
+  update(options: {
+    title?: string;
+    artist?: string;
+    album?: string;
+    artwork?: string;
+    playing?: boolean;
+    position?: number;
+    duration?: number;
+  }): Promise<void>;
+  addListener(event: "action", fn: (e: { action: string; position?: number }) => void): Promise<PluginListenerHandle>;
+}
+
+const noop = async () => {};
+const Playback = registerPlugin<PlaybackPlugin>("MusikePlayback", {
+  web: () => ({ update: noop, addListener: async () => ({ remove: noop }) }),
+});
+
+interface MessageBridge {
+  postMessage(message: unknown): void;
+}
+
+const iosBridge =
+  typeof globalThis !== "undefined"
+    ? (globalThis as { webkit?: { messageHandlers?: { musikeMedia?: MessageBridge } } }).webkit?.messageHandlers?.musikeMedia
+    : undefined;
+
 let lastMedia = { playing: false, position: 0, at: 0 };
 
 function worthSendingMedia(playing: boolean, position: number): boolean {
@@ -320,69 +349,53 @@ function worthSendingMedia(playing: boolean, position: number): boolean {
   return true;
 }
 
-function getCapacitorBridge(): any {
-  if (typeof window === "undefined") return null;
-  return (window as any).Capacitor ?? null;
-}
-
-/** Native media controls bridge for Android APK (lock screen notification, background audio, bluetooth/headphone controls) */
-export const systemMedia: SystemMedia = {
+const androidSystemMedia: SystemMedia = {
   setTrack(track) {
     lastMedia = { playing: lastMedia.playing, position: 0, at: Date.now() };
-    const cap = getCapacitorBridge();
-    const payload = {
+    void Playback.update({
       title: track.title,
       artist: track.artist,
       album: track.album || "",
       artwork: track.artwork || "",
       position: 0,
-    };
-    try {
-      if (cap?.nativePromise) {
-        cap.nativePromise("MusikePlayback", "update", payload).catch(() => {});
-      } else if (cap?.Plugins?.MusikePlayback?.update) {
-        cap.Plugins.MusikePlayback.update(payload).catch(() => {});
-      }
-    } catch {}
+    });
   },
   setState({ playing, position, duration }) {
     if (!worthSendingMedia(playing, position)) return;
-    const cap = getCapacitorBridge();
-    const payload = {
+    void Playback.update({
       playing,
       position: Math.max(0, position),
       duration: Number.isFinite(duration) ? duration : 0,
-    };
-    try {
-      if (cap?.nativePromise) {
-        cap.nativePromise("MusikePlayback", "update", payload).catch(() => {});
-      } else if (cap?.Plugins?.MusikePlayback?.update) {
-        cap.Plugins.MusikePlayback.update(payload).catch(() => {});
-      }
-    } catch {}
+    });
   },
   onAction(handler) {
-    const bind = () => {
-      const cap = getCapacitorBridge();
-      if (!cap) return;
-      try {
-        if (typeof cap.addListener === "function") {
-          cap.addListener("MusikePlayback", "action", (e: any) => {
-            if (e?.action) handler(e.action, e.position);
-          });
-        } else if (cap.Plugins?.MusikePlayback?.addListener) {
-          cap.Plugins.MusikePlayback.addListener("action", (e: any) => {
-            if (e?.action) handler(e.action, e.position);
-          });
-        }
-      } catch {}
-    };
-    if (typeof window !== "undefined") {
-      bind();
-      window.addEventListener("DOMContentLoaded", bind, { once: true });
-    }
+    void Playback.addListener("action", (e) => {
+      if (e?.action) {
+        handler(e.action as Parameters<typeof handler>[0], e.position);
+      }
+    });
   },
 };
+
+const iosSystemMedia: SystemMedia = {
+  setTrack(track) {
+    lastMedia = { playing: lastMedia.playing, position: 0, at: Date.now() };
+    iosBridge?.postMessage({ type: "track", ...track, position: 0 });
+  },
+  setState({ playing, position, duration }) {
+    if (!worthSendingMedia(playing, position)) return;
+    iosBridge?.postMessage({ type: "state", playing, position, duration: Number.isFinite(duration) ? duration : 0 });
+  },
+  onAction(handler) {
+    (globalThis as { __musikeMediaAction?: (action: string, position?: number) => void }).__musikeMediaAction = (
+      action,
+      position,
+    ) => handler(action as Parameters<typeof handler>[0], position);
+  },
+};
+
+/** Native media controls bridge for Android APK (lock screen notification, background audio, bluetooth/headphone controls) */
+export const systemMedia: SystemMedia = iosBridge ? iosSystemMedia : androidSystemMedia;
 
 /** What this build can do. The Android build has no video yet, no yt-dlp to manage, and retries expired streams. */
 export const capabilities = { video: false, engineSettings: false, retryOnError: false };
