@@ -12,6 +12,9 @@ const targetName = "CReEPUSIK-v1.6.5.apk";
 console.log("==> 1. Syncing web assets with Capacitor Android...");
 execSync("npx cap sync android", { cwd: rootDir, stdio: "inherit" });
 
+console.log("==> 1b. Generating all Android icons & splash screens from brand assets...");
+execSync("powershell -ExecutionPolicy Bypass -File scripts\\generate-android-icons.ps1", { cwd: rootDir, stdio: "inherit" });
+
 console.log("==> 2. Compiling and assembling APK using Gradle...");
 const env = {
   ...process.env,
