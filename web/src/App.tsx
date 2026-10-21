@@ -37,6 +37,8 @@ import type { PlaybackState } from "./lib/room";
 
 const SHEET_HASH = `#${NOW_PLAYING_HASH}`;
 
+let hasHandledInitialReload = false;
+
 export default function App() {
   const location = useLocation();
   const legacy = legacyRedirect(location.pathname, location.search, location.hash);
@@ -130,21 +132,27 @@ export default function App() {
     return unsub;
   }, []);
 
-  // Auto-navigate to rooms when invite code is present, or redirect to home on refresh
+  // On initial page load: if user refreshed directly on /rooms, redirect ONCE to home.
+  // Never blocks subsequent client-side navigation to /rooms!
   useEffect(() => {
-    try {
-      const navEntries = performance.getEntriesByType("navigation") as PerformanceNavigationTiming[];
-      const isReload =
-        navEntries.length > 0
-          ? navEntries[0].type === "reload"
-          : (window.performance as any)?.navigation?.type === 1;
+    if (!hasHandledInitialReload) {
+      hasHandledInitialReload = true;
+      try {
+        const navEntries = performance.getEntriesByType("navigation") as PerformanceNavigationTiming[];
+        const isReload =
+          navEntries.length > 0
+            ? navEntries[0].type === "reload"
+            : (window.performance as any)?.navigation?.type === 1;
 
-      if (isReload && (location.pathname === paths.rooms || location.pathname.startsWith("/room"))) {
-        navigate(paths.home, { replace: true });
-        return;
-      }
-    } catch {}
+        if (isReload && (window.location.pathname === paths.rooms || window.location.pathname.startsWith("/room"))) {
+          navigate(paths.home, { replace: true });
+        }
+      } catch {}
+    }
+  }, [navigate]);
 
+  // Auto-navigate to rooms when invite code is present
+  useEffect(() => {
     const invite = readInviteCode();
     if (invite && location.pathname !== paths.rooms) {
       navigate(paths.rooms);
