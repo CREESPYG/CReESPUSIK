@@ -7,6 +7,7 @@ import type { Track } from "../lib/types";
 import { useLibrary } from "../stores/library";
 import { openSettings } from "../stores/system";
 import { toast } from "../stores/ui";
+import { ytFallback } from "./ytFallback";
 
 export type Repeat = "off" | "all" | "one";
 /** A code translated where it is shown (so switching languages updates it), or a server error already in the right language. */
@@ -175,6 +176,9 @@ export const usePlayer = create<PlayerState>((set, get) => {
       return;
     }
 
+    if (ytFallback.isActive()) {
+      ytFallback.stop();
+    }
     const kind = kindFor(track);
     const media = mediaFor(kind);
     const other = mediaFor(kind === "video" ? "audio" : "video");
@@ -297,9 +301,22 @@ export const usePlayer = create<PlayerState>((set, get) => {
       retriedToken = token;
       return;
     }
-    set({ status: "error" });
     explainStreamError(url).then(({ message, code }) => {
-      if (mine === token) report(message, code);
+      if (mine !== token) return;
+      const s = get();
+      const currentTrack = s.queue[s.index];
+      // YouTube Bot Check or Stream Error Fallback:
+      // If YouTube blocks with bot check or stream refuses, seamlessly play via YouTube Player fallback engine!
+      if (currentTrack?.id && (code === "bot_check" || !capabilities.video)) {
+        console.warn("[Player] Stream refused (" + (code || "error") + "), engaging YouTube Player engine fallback...");
+        media.removeAttribute("src");
+        media.load();
+        set({ status: "loading", statusText: null });
+        ytFallback.playVideo(currentTrack.id, s.position || 0, true);
+        return;
+      }
+      set({ status: "error" });
+      report(message, code);
     });
   }
 
@@ -349,6 +366,39 @@ export const usePlayer = create<PlayerState>((set, get) => {
   }
   wire(audio);
   wire(videoEl);
+
+ytFallback.init({
+  onPlaying: () => {
+    usePlayer.setState({ status: "playing", statusText: null });
+    onStarted();
+    syncPlaybackState();
+  },
+  onPaused: () => {
+    usePlayer.setState({ status: "paused" });
+    syncPlaybackState();
+  },
+  onBuffering: () => {
+    usePlayer.setState({ status: "loading" });
+  },
+  onEnded: () => {
+    onEnded();
+  },
+  onTimeUpdate: (pos, dur) => {
+    const s = usePlayer.getState();
+    if (dur && Number.isFinite(dur) && Math.abs(s.duration - dur) > 1) {
+      usePlayer.setState({ duration: Math.round(dur) });
+    }
+    if (Math.abs(pos - s.position) >= 0.2) {
+      usePlayer.setState({ position: pos });
+    }
+  },
+  onError: () => {
+    const s = usePlayer.getState();
+    if (s.index < s.queue.length - 1) {
+      s.next();
+    }
+  },
+});
 
   const reloadIfKindChanged = () => {
     const s = get();
@@ -466,6 +516,14 @@ export const usePlayer = create<PlayerState>((set, get) => {
 
     toggle: () => {
       const s = get();
+      if (ytFallback.isActive()) {
+        if (s.status === "playing") {
+          ytFallback.pause();
+        } else {
+          ytFallback.resume();
+        }
+        return;
+      }
       const track = s.queue[s.index];
       if (!track) return;
       const kind = kindFor(track);
@@ -497,6 +555,10 @@ export const usePlayer = create<PlayerState>((set, get) => {
     seek: (seconds) => {
       const t = Math.max(0, Math.min(seconds, get().duration || seconds));
       set({ position: t });
+      if (ytFallback.isActive()) {
+        ytFallback.seek(t);
+        return;
+      }
       const media = activeMedia();
       const track = get().queue[get().index];
       if (!media || !track || loaded?.id !== track.id || media.readyState === 0) {
@@ -509,6 +571,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
     setVolume: (v) => {
       const volume = Math.max(0, Math.min(1, v));
       audio.volume = videoEl.volume = volume;
+      ytFallback.setVolume(volume);
       const muted = volume === 0 ? true : false;
       audio.muted = videoEl.muted = muted;
       set({ volume, muted });
@@ -517,6 +580,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
     toggleMute: () => {
       const muted = !get().muted;
       audio.muted = videoEl.muted = muted;
+      ytFallback.setMuted(muted);
       if (!muted && get().volume === 0) get().setVolume(0.6);
       else set({ muted });
     },

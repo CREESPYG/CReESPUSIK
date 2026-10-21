@@ -128,8 +128,21 @@ export default function App() {
     return unsub;
   }, []);
 
-  // Auto-navigate to rooms when invite code is present
+  // Auto-navigate to rooms when invite code is present, or redirect to home on refresh
   useEffect(() => {
+    try {
+      const navEntries = performance.getEntriesByType("navigation") as PerformanceNavigationTiming[];
+      const isReload =
+        navEntries.length > 0
+          ? navEntries[0].type === "reload"
+          : (window.performance as any)?.navigation?.type === 1;
+
+      if (isReload && (location.pathname === paths.rooms || location.pathname.startsWith("/room"))) {
+        navigate(paths.home, { replace: true });
+        return;
+      }
+    } catch {}
+
     const invite = readInviteCode();
     if (invite && location.pathname !== paths.rooms) {
       navigate(paths.rooms);

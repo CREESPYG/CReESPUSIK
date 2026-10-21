@@ -1,16 +1,45 @@
 import { useEffect } from "react";
+import { useNavigate } from "react-router";
 import { useRoomStore } from "../stores/roomStore";
 import { RoomPanel } from "../components/RoomPanel";
 import { toast } from "../stores/ui";
 import { PageHeader } from "../components/Page";
 import { BroadcastIcon } from "@phosphor-icons/react";
+import { paths } from "../lib/routes";
 
 export default function Rooms() {
+  const navigate = useNavigate();
   const roomApi = useRoomStore((s) => s.roomApi);
+  const inRoom = Boolean(roomApi?.inRoom);
+
+  // If user refreshed the site while on /rooms, redirect directly to home page as requested
+  useEffect(() => {
+    try {
+      const navEntries = performance.getEntriesByType("navigation") as PerformanceNavigationTiming[];
+      const isReload =
+        navEntries.length > 0
+          ? navEntries[0].type === "reload"
+          : (window.performance as any)?.navigation?.type === 1;
+
+      if (isReload) {
+        navigate(paths.home, { replace: true });
+      }
+    } catch {
+      // ignore
+    }
+  }, [navigate]);
 
   useEffect(() => {
     document.title = "Rooms & Live Chat - CReEPUSIK";
   }, []);
+
+  useEffect(() => {
+    if (inRoom) {
+      window.scrollTo({ top: 0, left: 0 });
+      const mainEl = document.querySelector("main");
+      if (mainEl) mainEl.scrollTop = 0;
+    }
+  }, [inRoom]);
 
   if (!roomApi) {
     return (
@@ -25,16 +54,6 @@ export default function Rooms() {
       </div>
     );
   }
-
-  const inRoom = roomApi.inRoom;
-
-  useEffect(() => {
-    if (inRoom) {
-      window.scrollTo({ top: 0, left: 0 });
-      const mainEl = document.querySelector('main');
-      if (mainEl) mainEl.scrollTop = 0;
-    }
-  }, [inRoom]);
 
   // When inside an active room session:
   // Use dedicated top safe area clearance so the room top bar fits cleanly below the phone notification section.
