@@ -540,14 +540,41 @@ ytFallback.init({
     },
 
     startRadio: async (track) => {
+      const s = get();
+      const current = s.queue[s.index];
+      const isCurrentPlaying = Boolean(current && current.id === track.id);
+
       toast(getT().player.startingRadio(track.title));
+
+      // If this is a new track that isn't currently playing, immediately start playing it with 0ms delay!
+      if (!isCurrentPlaying) {
+        get().playList([track], 0);
+      }
+
       try {
         let related = (await api.radio(track.id)).filter((t) => t.id !== track.id);
         if (!related.length) {
           const fallback = await api.search(track.artist || track.title, "song").catch(() => [] as Track[]);
           related = fallback.filter((t: Track) => t.id !== track.id);
         }
-        get().playList([track, ...related], 0);
+
+        const fresh = get();
+        const activeTrack = fresh.queue[fresh.index];
+
+        // Ensure we are still focused on the requested track
+        if (activeTrack && activeTrack.id === track.id) {
+          const curIdx = fresh.index;
+          // Keep all tracks up to current position, and append the fresh radio tracks
+          const kept = fresh.queue.slice(0, curIdx + 1);
+          const existingIds = new Set(kept.map((t) => t.id));
+          const cleanRelated = related.filter((t) => !existingIds.has(t.id));
+          const newQueue = [...kept, ...cleanRelated];
+
+          set({
+            queue: newQueue,
+            original: fresh.original ? [...fresh.original.slice(0, curIdx + 1), ...cleanRelated] : null,
+          });
+        }
       } catch (e) {
         toast((e as Error).message, "error");
       }
@@ -651,15 +678,19 @@ ytFallback.init({
       set({ position: t });
       if (ytFallback.isActive()) {
         ytFallback.seek(t);
-        return;
+      } else {
+        const media = activeMedia();
+        const track = get().queue[get().index];
+        if (!media || !track || loaded?.id !== track.id || media.readyState === 0) {
+          pendingSeek = t;
+        } else {
+          media.currentTime = t;
+        }
       }
-      const media = activeMedia();
-      const track = get().queue[get().index];
-      if (!media || !track || loaded?.id !== track.id || media.readyState === 0) {
-        pendingSeek = t;
-        return;
+      syncPositionState();
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("creepusik:player_seek", { detail: { position: t } }));
       }
-      media.currentTime = t;
     },
 
     setVolume: (v) => {
@@ -811,6 +842,7 @@ if ("mediaSession" in navigator) {
   const handlers: [MediaSessionAction, MediaSessionActionHandler][] = [
     ["play", () => p().status !== "playing" && p().toggle()],
     ["pause", () => p().status === "playing" && p().toggle()],
+    ["stop", () => p().status === "playing" && p().toggle()],
     ["previoustrack", () => p().prev()],
     ["nexttrack", () => p().next()],
     ["seekto", (d) => d.seekTime != null && p().seek(d.seekTime)],

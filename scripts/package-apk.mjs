@@ -3,7 +3,8 @@ import path from "node:path";
 import { execSync } from "node:child_process";
 
 const rootDir = process.cwd();
-const stagingExtracted = path.join(rootDir, ".apk_staging", "extracted");
+const stagingDir = path.join(rootDir, ".apk_staging");
+const stagingExtracted = path.join(stagingDir, "extracted");
 const stagingAssetsPublic = path.join(stagingExtracted, "assets", "public");
 const distDir = path.join(rootDir, "dist");
 const downloadsDir = path.join(rootDir, "public", "downloads");
@@ -14,9 +15,15 @@ const keytoolExe = `C:\\Program Files\\Eclipse Adoptium\\jdk-21.0.11.10-hotspot\
 const zipalignExe = `C:\\Users\\aarif\\AppData\\Local\\Android\\Sdk\\build-tools\\35.0.0\\zipalign.exe`;
 const apksignerBat = `C:\\Users\\aarif\\AppData\\Local\\Android\\Sdk\\build-tools\\35.0.0\\apksigner.bat`;
 
-// 1. Ensure staging exists
+// 1. Ensure staging exists or extract from base APK
 if (!fs.existsSync(stagingExtracted)) {
-  throw new Error("Staging extracted directory does not exist!");
+  fs.mkdirSync(stagingExtracted, { recursive: true });
+  const baseApk = path.join(downloadsDir, "CReEPUSIK-v1.6.5.apk");
+  if (!fs.existsSync(baseApk)) {
+    throw new Error("Base APK not found in downloads!");
+  }
+  console.log("Extracting native Android shell from base APK...");
+  execSync(`"${jarExe}" -xf "${baseApk}"`, { cwd: stagingExtracted, stdio: "inherit" });
 }
 
 // 2. Remove old assets/public and replace with fresh dist
@@ -56,19 +63,19 @@ if (fs.existsSync(metaInf)) {
 }
 
 // 4. Create unaligned APK with jar
-const unalignedApk = path.join(rootDir, ".apk_staging", "unaligned.apk");
+const unalignedApk = path.join(stagingDir, "unaligned.apk");
 if (fs.existsSync(unalignedApk)) fs.unlinkSync(unalignedApk);
 console.log("Packaging unaligned APK with jar...");
 execSync(`"${jarExe}" -c -f "${unalignedApk}" -M -C "${stagingExtracted}" .`, { stdio: "inherit" });
 
 // 5. Zipalign
-const alignedApk = path.join(rootDir, ".apk_staging", "aligned.apk");
+const alignedApk = path.join(stagingDir, "aligned.apk");
 if (fs.existsSync(alignedApk)) fs.unlinkSync(alignedApk);
 console.log("Aligning APK with zipalign...");
 execSync(`"${zipalignExe}" -p -f 4 "${unalignedApk}" "${alignedApk}"`, { stdio: "inherit" });
 
 // 6. Ensure keystore exists
-const keystorePath = path.join(rootDir, ".apk_staging", "release.keystore");
+const keystorePath = path.join(stagingDir, "release.keystore");
 if (!fs.existsSync(keystorePath)) {
   console.log("Generating release keystore...");
   execSync(
@@ -97,5 +104,10 @@ execSync(`"${apksignerBat}" verify --verbose "${targetApk}"`, { stdio: "inherit"
 fs.mkdirSync(distDownloadsDir, { recursive: true });
 const distTargetApk = path.join(distDownloadsDir, "CReEPUSIK-v1.6.5.apk");
 fs.copyFileSync(targetApk, distTargetApk);
+
+// 10. Clean staging directory
+try {
+  fs.rmSync(stagingDir, { recursive: true, force: true });
+} catch {}
 
 console.log("Successfully built, signed, and verified CReEPUSIK-v1.6.5.apk!");

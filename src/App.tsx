@@ -104,7 +104,7 @@ export default function App() {
           }
         } else {
           if (pb.isPlaying) {
-            if (s.status === "paused") {
+            if (s.status !== "playing") {
               s.play();
             }
           } else {
@@ -112,7 +112,7 @@ export default function App() {
               s.pause();
             }
           }
-          if (typeof pb.position === "number" && Math.abs(s.position - pb.position) > 2.5) {
+          if (typeof pb.position === "number" && Math.abs(s.position - pb.position) > 2.0) {
             s.seek(pb.position);
           }
         }
@@ -141,7 +141,8 @@ export default function App() {
   useEffect(() => {
     let lastTrackId = "";
     let lastStatus = "";
-    let lastQueueLen = 0;
+    let lastQueueSignature = "";
+
     const unsub = usePlayer.subscribe((state) => {
       if (isApplyingRemoteRef.current) return;
       const roomApi = useRoomStore.getState().roomApi;
@@ -150,7 +151,7 @@ export default function App() {
       const curr = state.queue[state.index];
       const currId = curr?.id || "";
       const status = state.status;
-      const queueLen = state.queue.length;
+      const queueSignature = `${state.queue.length}:${state.queue.map((t) => t.id).join(",")}`;
 
       if (roomApi.canDrive && (currId !== lastTrackId || status !== lastStatus)) {
         lastTrackId = currId;
@@ -158,12 +159,25 @@ export default function App() {
         roomApi.pushPlayback();
       }
 
-      if (roomApi.isHost && queueLen !== lastQueueLen) {
-        lastQueueLen = queueLen;
+      if (roomApi.isHost && queueSignature !== lastQueueSignature) {
+        lastQueueSignature = queueSignature;
         roomApi.broadcastQueue(state.queue);
       }
     });
-    return unsub;
+
+    const onSeek = () => {
+      if (isApplyingRemoteRef.current) return;
+      const roomApi = useRoomStore.getState().roomApi;
+      if (roomApi?.inRoom && roomApi.canDrive) {
+        roomApi.pushPlayback();
+      }
+    };
+    window.addEventListener("creepusik:player_seek", onSeek);
+
+    return () => {
+      unsub();
+      window.removeEventListener("creepusik:player_seek", onSeek);
+    };
   }, []);
 
   // On initial page load: if user refreshed directly on /rooms, redirect ONCE to home.

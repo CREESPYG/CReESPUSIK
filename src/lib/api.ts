@@ -310,8 +310,79 @@ export async function saveFile(name: string, text: string) {
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
-/** Only the Android app needs its own bridge to the system's media controls. */
-export const systemMedia: SystemMedia | null = null;
+let lastMedia = { playing: false, position: 0, at: 0 };
+
+function worthSendingMedia(playing: boolean, position: number): boolean {
+  const now = Date.now();
+  const expected = lastMedia.playing ? lastMedia.position + (now - lastMedia.at) / 1000 : lastMedia.position;
+  if (playing === lastMedia.playing && Math.abs(position - expected) < 2 && now - lastMedia.at < 15_000) return false;
+  lastMedia = { playing, position, at: now };
+  return true;
+}
+
+function getCapacitorBridge(): any {
+  if (typeof window === "undefined") return null;
+  return (window as any).Capacitor ?? null;
+}
+
+/** Native media controls bridge for Android APK (lock screen notification, background audio, bluetooth/headphone controls) */
+export const systemMedia: SystemMedia = {
+  setTrack(track) {
+    lastMedia = { playing: lastMedia.playing, position: 0, at: Date.now() };
+    const cap = getCapacitorBridge();
+    const payload = {
+      title: track.title,
+      artist: track.artist,
+      album: track.album || "",
+      artwork: track.artwork || "",
+      position: 0,
+    };
+    try {
+      if (cap?.nativePromise) {
+        cap.nativePromise("MusikePlayback", "update", payload).catch(() => {});
+      } else if (cap?.Plugins?.MusikePlayback?.update) {
+        cap.Plugins.MusikePlayback.update(payload).catch(() => {});
+      }
+    } catch {}
+  },
+  setState({ playing, position, duration }) {
+    if (!worthSendingMedia(playing, position)) return;
+    const cap = getCapacitorBridge();
+    const payload = {
+      playing,
+      position: Math.max(0, position),
+      duration: Number.isFinite(duration) ? duration : 0,
+    };
+    try {
+      if (cap?.nativePromise) {
+        cap.nativePromise("MusikePlayback", "update", payload).catch(() => {});
+      } else if (cap?.Plugins?.MusikePlayback?.update) {
+        cap.Plugins.MusikePlayback.update(payload).catch(() => {});
+      }
+    } catch {}
+  },
+  onAction(handler) {
+    const bind = () => {
+      const cap = getCapacitorBridge();
+      if (!cap) return;
+      try {
+        if (typeof cap.addListener === "function") {
+          cap.addListener("MusikePlayback", "action", (e: any) => {
+            if (e?.action) handler(e.action, e.position);
+          });
+        } else if (cap.Plugins?.MusikePlayback?.addListener) {
+          cap.Plugins.MusikePlayback.addListener("action", (e: any) => {
+            if (e?.action) handler(e.action, e.position);
+          });
+        }
+      } catch {}
+    };
+    if (typeof window !== "undefined") {
+      bind();
+      window.addEventListener("DOMContentLoaded", bind, { once: true });
+    }
+  },
+};
 
 /** What this build can do. The Android build has no video yet, no yt-dlp to manage, and retries expired streams. */
 export const capabilities = { video: false, engineSettings: false, retryOnError: false };

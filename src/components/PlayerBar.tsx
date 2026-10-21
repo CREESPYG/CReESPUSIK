@@ -1,8 +1,10 @@
-﻿import { KeyboardIcon, QueueIcon, SidebarSimpleIcon } from "@phosphor-icons/react";
+import { KeyboardIcon, QueueIcon, RadioIcon, SidebarSimpleIcon } from "@phosphor-icons/react";
 import { cn } from "../lib/format";
 import { useT } from "../i18n";
 import { selectCurrent, usePlayer, useStatusText } from "../player/player";
 import { useUi } from "../stores/ui";
+import { useRoomStore } from "../stores/roomStore";
+import { toast } from "../stores/ui";
 import { Artwork } from "./Artwork";
 import { FavoriteButton, Scrubber, Transport, Volume } from "./Controls";
 import { IconButton } from "./IconButton";
@@ -39,6 +41,20 @@ export function PlayerBar() {
                 </p>
               </div>
               <FavoriteButton track={track} size="sm" />
+              <IconButton
+                label={t.nowPlaying.startRadio}
+                size="sm"
+                onClick={() => {
+                  const roomApi = useRoomStore.getState().roomApi;
+                  if (roomApi?.inRoom && !roomApi.canPlayPause) {
+                    toast("🔒 Only host can start radio for the room", "info");
+                    return;
+                  }
+                  void usePlayer.getState().startRadio(track);
+                }}
+              >
+                <RadioIcon size={18} />
+              </IconButton>
             </>
           ) : (
             <p className="truncate pl-1 text-sm text-fg-3">{t.player.nothingPlaying}</p>
@@ -51,8 +67,6 @@ export function PlayerBar() {
         </div>
 
         <div className="flex items-center justify-end gap-1">
-          
-          
           <IconButton
             label={t.player.queue}
             size="sm"

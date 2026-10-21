@@ -154,6 +154,7 @@ export function useRoom(handlers: RoomHandlers) {
   // Phase 17 — debug telemetry counters (read-only, never drive behavior)
   const lastBeatRef = useRef(0);
   const reconnectCountRef = useRef(0);
+  const lastAppliedPlaybackTsRef = useRef(0);
 
   const isOwner = room?.hostId === me.current || status === "hosting";
   const myRole: MemberRole = useMemo(() => {
@@ -384,19 +385,15 @@ export function useRoom(handlers: RoomHandlers) {
 
   /* ---------- host broadcast of playback ---------- */
   const pushPlayback = useCallback(() => {
-    const ch = syncChanRef.current || chanRef.current;
-    if (!ch) return;
     const isHost = roomRef.current?.hostId === me.current || statusRef.current === "hosting";
     const canDrive = isHost || permRef.current.play_pause;
     if (!canDrive) return;
     const pb = hRef.current.getPlayback();
     if (!pb) return;
     lastBeatRef.current = Date.now();
-    ch.send({
-      type: "broadcast",
-      event: "playback",
-      payload: { ...pb, ts: Date.now(), by: me.current } as PlaybackState,
-    }).catch(() => {});
+    const payload = { ...pb, ts: Date.now(), by: me.current } as PlaybackState;
+    syncChanRef.current?.send({ type: "broadcast", event: "playback", payload }).catch(() => {});
+    chanRef.current?.send({ type: "broadcast", event: "playback", payload }).catch(() => {});
   }, []);
 
   /* ---------- lobby host channel management ---------- */
@@ -1029,17 +1026,22 @@ export function useRoom(handlers: RoomHandlers) {
       });
 
       /* Wire Music Playback & Queue Channel Events */
-      syncCh.on("broadcast", { event: "playback" }, ({ payload }) => {
+      const handleIncomingPlayback = (payload: any) => {
         const pb = payload as PlaybackState;
-        if (pb.by === me.current) return;
+        if (!pb || pb.by === me.current) return;
+        if (pb.ts && pb.ts <= lastAppliedPlaybackTsRef.current) return;
+        lastAppliedPlaybackTsRef.current = pb.ts || Date.now();
         hRef.current.applyPlayback(pb);
-      });
+      };
+
+      syncCh.on("broadcast", { event: "playback" }, ({ payload }) => handleIncomingPlayback(payload));
+      ch.on("broadcast", { event: "playback" }, ({ payload }) => handleIncomingPlayback(payload));
 
       syncCh.on("broadcast", { event: "queue_add" }, ({ payload }) => {
         if (roomRef.current?.hostId !== me.current && statusRef.current !== "hosting") return;
         if (!permRef.current.add_song) return;
         const currentQueue = hRef.current.getQueue?.() || [];
-        const incomingTrack = payload.track;
+        const incomingTrack = payload?.track;
         if (!incomingTrack) return;
         const exists = currentQueue.some((t: any) => t.id === incomingTrack.id || t.videoId === incomingTrack.videoId);
         if (!exists) {
@@ -1050,15 +1052,23 @@ export function useRoom(handlers: RoomHandlers) {
             event: "queue_update",
             payload: newQueue,
           }).catch(() => {});
+          ch.send({
+            type: "broadcast",
+            event: "queue_update",
+            payload: newQueue,
+          }).catch(() => {});
         }
       });
 
-      syncCh.on("broadcast", { event: "queue_update" }, ({ payload }) => {
+      const handleIncomingQueueUpdate = (payload: any) => {
         if (roomRef.current?.hostId === me.current || statusRef.current === "hosting") return;
         if (Array.isArray(payload)) {
           hRef.current.applyQueue?.(payload);
         }
-      });
+      };
+
+      syncCh.on("broadcast", { event: "queue_update" }, ({ payload }) => handleIncomingQueueUpdate(payload));
+      ch.on("broadcast", { event: "queue_update" }, ({ payload }) => handleIncomingQueueUpdate(payload));
 
       syncCh.on("broadcast", { event: "pause_all" }, () => {
         hRef.current.applyPlayback({
@@ -1997,9 +2007,9 @@ export function useRoom(handlers: RoomHandlers) {
   }, [inRoom, isHost]);
 
   const broadcastQueue = useCallback((queue: any[]) => {
-    const ch = syncChanRef.current || chanRef.current;
-    if (!ch || (roomRef.current?.hostId !== me.current && statusRef.current !== "hosting")) return;
-    ch.send({ type: "broadcast", event: "queue_update", payload: queue }).catch(() => {});
+    if (roomRef.current?.hostId !== me.current && statusRef.current !== "hosting") return;
+    syncChanRef.current?.send({ type: "broadcast", event: "queue_update", payload: queue }).catch(() => {});
+    chanRef.current?.send({ type: "broadcast", event: "queue_update", payload: queue }).catch(() => {});
   }, []);
 
   return {
