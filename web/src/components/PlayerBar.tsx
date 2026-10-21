@@ -1,5 +1,4 @@
-﻿import { ChatCircleDotsIcon, KeyboardIcon, QueueIcon, SidebarSimpleIcon } from "@phosphor-icons/react";
-import { useRoomStore } from "../stores/roomStore";
+﻿import { KeyboardIcon, QueueIcon, SidebarSimpleIcon } from "@phosphor-icons/react";
 import { cn } from "../lib/format";
 import { useT } from "../i18n";
 import { selectCurrent, usePlayer, useStatusText } from "../player/player";
@@ -17,10 +16,6 @@ export function PlayerBar() {
   const panelOpen = useUi((s) => s.panelOpen || s.drawerOpen);
   const panelTab = useUi((s) => s.panelTab);
   const togglePanel = useUi((s) => s.togglePanel);
-  const sideChatOpen = useUi((s) => s.sideChatOpen);
-  const toggleSideChat = useUi((s) => s.toggleSideChat);
-  const roomApi = useRoomStore((s) => s.roomApi);
-  const inRoom = roomApi?.inRoom;
   const setShortcutsOpen = useUi((s) => s.setShortcutsOpen);
 
   return (
@@ -57,18 +52,7 @@ export function PlayerBar() {
 
         <div className="flex items-center justify-end gap-1">
           
-          {inRoom && (
-            <IconButton
-              label="Live Room Chat"
-              size="sm"
-              active={sideChatOpen}
-              onClick={toggleSideChat}
-              className="relative"
-            >
-              <ChatCircleDotsIcon size={18} className="text-accent" />
-              <span className="absolute top-1 right-1 size-2 rounded-full bg-accent animate-pulse" />
-            </IconButton>
-          )}
+          
           <IconButton
             label={t.player.queue}
             size="sm"

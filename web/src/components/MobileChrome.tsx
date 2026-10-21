@@ -1,6 +1,4 @@
-import { BooksIcon, ChatCircleDotsIcon, HouseIcon, MagnifyingGlassIcon, UsersIcon } from "@phosphor-icons/react";
-import { useRoomStore } from "../stores/roomStore";
-import { useUi } from "../stores/ui";
+import { BooksIcon, HouseIcon, MagnifyingGlassIcon, UsersIcon } from "@phosphor-icons/react";
 import { NavLink, useNavigate } from "react-router";
 import { cn } from "../lib/format";
 import { useT } from "../i18n";
@@ -63,9 +61,6 @@ export function MiniPlayer() {
   const status = usePlayer((s) => s.status);
   const statusText = useStatusText();
   const toggle = usePlayer((s) => s.toggle);
-  const toggleSideChat = useUi((s) => s.toggleSideChat);
-  const roomApi = useRoomStore((s) => s.roomApi);
-  const inRoom = roomApi?.inRoom;
   const t = useT();
   const navigate = useNavigate();
   if (!track) return null;
@@ -97,20 +92,7 @@ export function MiniPlayer() {
           >
             <PlayPauseIcon size={24} />
           </button>
-          {inRoom && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleSideChat();
-              }}
-              className="relative grid size-10 shrink-0 place-items-center rounded-full text-accent active:scale-90"
-              aria-label="Live Room Chat"
-            >
-              <ChatCircleDotsIcon size={22} weight="fill" />
-              <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-accent animate-pulse" />
-            </button>
-          )}
+          
           <span className="absolute inset-x-3 bottom-0 h-[2px] rounded-full bg-surface-4">
             <span className="block h-full rounded-full bg-accent" style={{ width: `${pct}%` }} />
           </span>

@@ -1,11 +1,10 @@
-import { ArrowLeftIcon, ChatCircleDotsIcon, GearSixIcon } from "@phosphor-icons/react";
+import { ArrowLeftIcon, GearSixIcon } from "@phosphor-icons/react";
 import type { ReactNode } from "react";
 import { useNavigate } from "react-router";
 import { useT } from "../i18n";
 import { cn } from "../lib/format";
 import { needsAttention, useSystem } from "../stores/system";
 import { useUi } from "../stores/ui";
-import { useRoomStore } from "../stores/roomStore";
 import { LogoMark } from "./Brand";
 import { IconButton } from "./IconButton";
 
@@ -23,9 +22,6 @@ export function PageHeader({
   className?: string;
 }) {
   const setSettingsOpen = useUi((s) => s.setSettingsOpen);
-  const toggleSideChat = useUi((s) => s.toggleSideChat);
-  const room = useRoomStore((s) => s.roomApi);
-  const inRoom = !!room?.inRoom;
   const attention = useSystem((s) => needsAttention(s.info));
   const t = useT();
 
@@ -34,7 +30,7 @@ export function PageHeader({
       className={cn(
         "safe-top sticky top-0 z-10 bg-bg/80 backdrop-blur-xl md:bg-surface-1/80 border-b md:border-b-0 border-line/40",
         // Only hide on desktop if explicitly requested and not in room
-        mobileOnly && !inRoom && "md:hidden",
+        mobileOnly && "md:hidden",
         className,
       )}
     >
@@ -44,28 +40,7 @@ export function PageHeader({
         {!title && <span className="flex-1" />}
         {actions}
 
-        {/* Global Chat Toggle Button on Top Bar */}
-        <button
-          type="button"
-          onClick={() => toggleSideChat()}
-          aria-label="Toggle Live Room Chat"
-          title={inRoom ? `Room Chat: ${room?.room?.name || "Active Room"} (${room?.chat.length || 0} msgs)` : "Live Room Chat"}
-          className={cn(
-            "relative flex items-center justify-center gap-1.5 h-9 px-3 rounded-full text-xs font-semibold transition-all border shrink-0",
-            inRoom
-              ? "bg-[var(--accent-soft)] border-accent/40 text-[var(--accent-text)] hover:brightness-105 active:scale-95 shadow-xs"
-              : "bg-surface-2 hover:bg-surface-3 border-line text-fg-2 hover:text-fg"
-          )}
-        >
-          <ChatCircleDotsIcon size={18} weight={inRoom ? "fill" : "regular"} />
-          <span className="hidden sm:inline">Chat</span>
-          {inRoom && (
-            <span className="relative flex size-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75" />
-              <span className="relative inline-flex rounded-full size-2 bg-accent" />
-            </span>
-          )}
-        </button>
+        
 
         <IconButton
           label={attention ? t.nav.settingsUpdate : t.nav.settings}
