@@ -1,0 +1,12 @@
+{
+  "appId": "com.creespyg.creepusik",
+  "appName": "CReEPUSIK",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "backgroundColor": "#0a0a0f",
+    "allowMixedContent": true
+  }
+}

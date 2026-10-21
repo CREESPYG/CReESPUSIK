@@ -11,3 +11,10 @@ dev-dist/
 # System files
 .DS_Store
 Thumbs.db
+
+# Android build outputs and secrets
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+.apk_staging/
