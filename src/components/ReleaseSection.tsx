@@ -19,7 +19,7 @@ export function ReleaseSection({ className, showTitle = true }: ReleaseSectionPr
 
   const directApkUrl = "/downloads/CReEPUSIK-v1.6.1.apk";
   const gitHubApkUrl =
-    "https://github.com/CREESPYG/CReESPUSIK/raw/main/release-apk/CReEPUSIK-release-signed.apk";
+    "https://github.com/CREESPYG/CReESPUSIK/releases/download/v1.6.1/CReEPUSIK-v1.6.1.apk";
   const gitHubReleaseUrl = "https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.6.1";
 
   const copyLink = () => {
