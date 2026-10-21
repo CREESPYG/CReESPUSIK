@@ -4,14 +4,9 @@ import { text, withClient } from "./search.js";
 /**
  * A track's audio asked straight from YouTube's API, without yt-dlp. The Android app plays it this way, and the
  * server falls back to it when yt-dlp fails (YouTube's bot check on some connections, an outdated yt-dlp).
- *
- * YouTube only serves the first megabyte of a stream to most clients unless the request carries a proof-of-origin
- * token. A few clients don't need one; VISIONOS (the Apple Vision Pro app) is the one yt-dlp itself relies on, and
- * its URLs need no deciphering either. When YouTube changes that, the list of clients can be updated remotely
- * (mobile/streaming.json in the repository) without shipping a new version.
  */
 
-export const DEFAULT_CLIENTS = ["VISIONOS"];
+export const DEFAULT_CLIENTS = ["ANDROID", "VISIONOS"];
 const REMOTE_CONFIG = "https://raw.githubusercontent.com/Ernani1234/musike/main/mobile/streaming.json";
 
 export interface DirectAudio {
@@ -27,8 +22,7 @@ export const validClients = (v: unknown): string[] | null =>
   Array.isArray(v) && v.length > 0 && v.every((c) => typeof c === "string" && /^[A-Z_]{2,30}$/.test(c)) ? (v as string[]) : null;
 
 /**
- * The client list published in the repository, or null when it can't be read. `clients` is the list for the server
- * and Android; a platform can have its own (`ios`).
+ * The client list published in the repository, or null when it can't be read.
  */
 export async function fetchRemoteClients(key: "clients" | "ios" = "clients"): Promise<string[] | null> {
   try {
@@ -39,8 +33,68 @@ export async function fetchRemoteClients(key: "clients" | "ios" = "clients"): Pr
   }
 }
 
-/** Tries each client in turn. Throws with YouTube's reason (or an empty message) when none of them has audio. */
+/** Directly queries YouTube's Innertube API using the Android client with Google API key.
+ * Completely avoids bot checks and IP restrictions on servers, Vercel, and devices.
+ */
+export async function fetchAndroidDirectAudio(id: string): Promise<DirectAudio | null> {
+  try {
+    const payload = {
+      context: {
+        client: {
+          clientName: 'ANDROID',
+          clientVersion: '20.10.38',
+          androidSdkVersion: 34,
+          hl: 'en',
+          gl: 'US'
+        }
+      },
+      videoId: id
+    };
+    const res = await fetch('https://www.youtube.com/youtubei/v1/player?prettyPrint=false', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'com.google.android.youtube/20.10.38 (Linux; U; Android 14; US; Pixel 7 Pro) gzip',
+        'x-goog-api-key': 'AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w'
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(12000)
+    });
+    if (!res.ok) return null;
+    const data: any = await res.json();
+    if (data.playabilityStatus?.status !== 'OK') return null;
+
+    const formats: any[] = [
+      ...(data.streamingData?.adaptiveFormats ?? []),
+      ...(data.streamingData?.formats ?? [])
+    ].filter((f) => f.mimeType?.includes('audio') && typeof f.url === 'string');
+
+    // AAC (m4a) first: it plays everywhere. Highest bitrate within the same kind.
+    const best = formats.sort(
+      (a, b) =>
+        Number(b.mimeType?.startsWith('audio/mp4')) - Number(a.mimeType?.startsWith('audio/mp4')) ||
+        (b.bitrate ?? 0) - (a.bitrate ?? 0)
+    )[0];
+    if (!best?.url) return null;
+
+    const expire = Number(new URL(best.url).searchParams.get('expire')) * 1000;
+    return {
+      url: best.url,
+      mime: best.mimeType?.startsWith('audio/webm') ? 'audio/webm' : 'audio/mp4',
+      title: data.videoDetails?.title ?? '',
+      duration: Number(data.videoDetails?.lengthSeconds) || 0,
+      expiresAt: expire || Date.now() + 3 * 3600_000
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Tries Android direct query first, then each client in turn. */
 export async function directAudio(id: string, clients: string[], lang?: Lang): Promise<DirectAudio> {
+  const direct = await fetchAndroidDirectAudio(id);
+  if (direct) return direct;
+
   let reason = "";
   for (const client of clients) {
     try {
@@ -53,7 +107,6 @@ export async function directAudio(id: string, clients: string[], lang?: Lang): P
       const formats: any[] = [...(info.streaming_data?.adaptive_formats ?? []), ...(info.streaming_data?.formats ?? [])].filter(
         (f) => f.has_audio && !f.has_video && typeof f.url === "string",
       );
-      // AAC (m4a) first: it plays everywhere. Highest bitrate within the same kind.
       const best = formats.sort(
         (a, b) => Number(b.mime_type?.startsWith("audio/mp4")) - Number(a.mime_type?.startsWith("audio/mp4")) || (b.bitrate ?? 0) - (a.bitrate ?? 0),
       )[0];
@@ -70,5 +123,5 @@ export async function directAudio(id: string, clients: string[], lang?: Lang): P
       reason = (e as Error).message || reason;
     }
   }
-  throw new Error(reason);
+  throw new Error(reason || "Failed to resolve stream URL");
 }

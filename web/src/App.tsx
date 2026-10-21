@@ -33,6 +33,7 @@ import Search from "./views/Search";
 import Rooms from "./views/Rooms";
 import { useRoom } from "./hooks/useRoom";
 import { useRoomStore } from "./stores/roomStore";
+import { readInviteCode } from "./lib/room";
 import type { PlaybackState } from "./lib/room";
 
 const SHEET_HASH = `#${NOW_PLAYING_HASH}`;
@@ -126,6 +127,14 @@ export default function App() {
     });
     return unsub;
   }, []);
+
+  // Auto-navigate to rooms when invite code is present
+  useEffect(() => {
+    const invite = readInviteCode();
+    if (invite && location.pathname !== paths.rooms) {
+      navigate(paths.rooms);
+    }
+  }, [location.pathname, navigate]);
 
   useShortcuts();
 
@@ -222,6 +231,8 @@ export default function App() {
               <Route path="/search/album/:id" element={<Album />} />
               <Route path={paths.library} element={<Library />} />
               <Route path={paths.rooms} element={<Rooms />} />
+              <Route path="/room/:code" element={<Rooms />} />
+              <Route path="/rooms/:code" element={<Rooms />} />
               <Route path={paths.favorites} element={<Collection kind="favorites" />} />
               <Route path={paths.history} element={<Collection kind="history" />} />
               <Route path="/playlist/:id" element={<Collection kind="playlist" />} />

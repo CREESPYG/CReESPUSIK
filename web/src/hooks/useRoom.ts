@@ -15,6 +15,8 @@ import {
   userId,
   getTabSessionId,
   clearRoomSession,
+  saveRoomSession,
+  loadRoomSession,
   readInviteCode,
   type ChatMsg,
   type ConnState,
@@ -1189,6 +1191,15 @@ export function useRoom(handlers: RoomHandlers) {
       setupHostLobby(code, info);
       bindRoomChannel(code, "host", info);
 
+      saveRoomSession({
+        roomCode: code,
+        roomName: info.name,
+        role: "host",
+        userId: me.current,
+        sessionId: tabSessionId.current,
+        joinedAt: Date.now(),
+      });
+
       if (info.type === "public") {
         announceDirectory({
           code: info.code,
@@ -1878,7 +1889,6 @@ export function useRoom(handlers: RoomHandlers) {
         }).catch(() => {});
       }
       chanRef.current?.untrack().catch(() => {});
-      clearRoomSession();
     };
 
     window.addEventListener("beforeunload", handleBeforeUnload);
@@ -1892,11 +1902,42 @@ export function useRoom(handlers: RoomHandlers) {
     if (isRecoveringRef.current) return;
     isRecoveringRef.current = true;
 
-    clearRoomSession();
-
     const invite = readInviteCode();
+    const session = loadRoomSession();
+
     if (invite) {
       joinRoom(invite, savedNickname() || "Guest", false);
+    } else if (session && session.roomCode && Date.now() - session.joinedAt < 6 * 3600 * 1000) {
+      if (session.role === "host") {
+        const nick = savedNickname() || "Host";
+        const info: RoomInfo = {
+          code: session.roomCode,
+          name: session.roomName || `${nick}'s Room`,
+          type: "public",
+          requireApproval: false,
+          hostId: me.current,
+          hostName: nick,
+          chatEnabled: true,
+          voiceEnabled: true,
+        };
+        setRoom(info);
+        roomRef.current = info;
+        setStatus("hosting");
+        setupHostLobby(session.roomCode, info);
+        bindRoomChannel(session.roomCode, "host", info);
+        announceDirectory({
+          code: info.code,
+          name: info.name,
+          hostName: info.hostName,
+          count: 1,
+          requireApproval: info.requireApproval,
+          at: Date.now(),
+        });
+      } else {
+        joinRoom(session.roomCode, savedNickname() || "Guest", true);
+      }
+    } else {
+      clearRoomSession();
     }
   }, [joinRoom]);
 
