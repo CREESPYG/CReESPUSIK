@@ -1,7 +1,7 @@
 {
   "name": "@musike/mobile",
   "private": true,
-  "version": "1.5.1",
+  "version": "1.6.1",
   "description": "Musike for Android: the web app with the server's work done on the phone (Capacitor).",
   "type": "module",
   "scripts": {
