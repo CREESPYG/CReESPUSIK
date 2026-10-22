@@ -151,6 +151,9 @@ export function useRoom(handlers: RoomHandlers) {
   const explicitlyLeftRef = useRef<Map<string, number>>(new Map());
   const isRecoveringRef = useRef(false);
   const hasCompletedInitialSyncRef = useRef(false);
+  // Channel (re)bind moment: presence metas created BEFORE this are people who were already in the
+  // room — their joins must never re-appear as notifications.
+  const bindAtRef = useRef(0);
   const publicRoomsCacheRef = useRef<Map<string, PublicRoomEntry>>(new Map());
   // Phase 17 — debug telemetry counters (read-only, never drive behavior)
   const lastBeatRef = useRef(0);
@@ -539,9 +542,17 @@ export function useRoom(handlers: RoomHandlers) {
     [pushPlayback]
   );
 
-  const syncMembers = useCallback((ch: RealtimeChannel) => {
+  /**
+   * Roster reconciliation. Join notifications only fire in `notifyJoins` mode, which is bound to the
+   * real-time `presence join` event: people already in the room when I subscribe arrive through `sync`
+   * (never notified) and pre-existing presences replayed during backfill are filtered by their meta age
+   * (`at` must be newer than my bind moment). The result: exactly one "joined" message per real join,
+   * never a replay of everyone who is already here.
+   */
+  const syncMembers = useCallback((ch: RealtimeChannel, notifyJoins = false) => {
     const state = ch.presenceState() as Record<string, any[]>;
     const now = Date.now();
+    const bindAt = bindAtRef.current;
     const currentHostId = roomRef.current?.hostId;
     const rosterMap = new Map<string, Member>();
     const isFirstSync = !hasCompletedInitialSyncRef.current;
@@ -597,10 +608,12 @@ export function useRoom(handlers: RoomHandlers) {
       rosterMap.set(uid, member);
       knownMembersCacheRef.current.set(uid, member);
 
-      // Notify join only once per user session, and NEVER during initial sync for existing room occupants
+      // Notify join only once per user session — only for real-time joins, and only if their presence
+      // was actually created after we bound the channel (backfilled presences are people who were
+      // already in the room before us).
       if (!knownMemberIdsRef.current.has(uid) && uid !== me.current) {
         knownMemberIdsRef.current.add(uid);
-        if (!isFirstSync) {
+        if (notifyJoins && (!isFirstSync || (m.at || 0) > bindAt)) {
           notifyMemberEvent("join", uid, memberNick);
         }
       }
@@ -700,6 +713,7 @@ export function useRoom(handlers: RoomHandlers) {
   const bindRoomChannel = useCallback(
     (code: string, role: "host" | "member", info: RoomInfo) => {
       reconnectCountRef.current += 1;
+      bindAtRef.current = Date.now();
       hasCompletedInitialSyncRef.current = false;
       resubTimersRef.current.forEach(window.clearTimeout);
       resubTimersRef.current = [];
@@ -734,9 +748,10 @@ export function useRoom(handlers: RoomHandlers) {
       });
       syncChanRef.current = syncCh;
 
-      // Presence events - sync roster safely without false leave spam
+      // Presence events - sync roster safely without false leave spam. Only the real-time "join" event
+      // may announce joins (headless "sync" reconciliations must stay silent).
       ch.on("presence", { event: "sync" }, () => syncMembers(ch));
-      ch.on("presence", { event: "join" }, () => syncMembers(ch));
+      ch.on("presence", { event: "join" }, () => syncMembers(ch, true));
       ch.on("presence", { event: "leave" }, () => syncMembers(ch));
 
       // Synchronize state & missed chats on demand
