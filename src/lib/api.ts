@@ -12,7 +12,7 @@ import {
 } from "./apiTypes";
 import type { AlbumCard, AlbumPage, ArtistPage, Genre, GenreArtist, GenrePage, Library, Playlist, Track } from "./types";
 
-import { Capacitor, CapacitorHttp, registerPlugin, type PluginListenerHandle } from "@capacitor/core";
+import { Capacitor, registerPlugin, type PluginListenerHandle } from "@capacitor/core";
 import { resolveDirectAudio, invalidateDirectAudio } from "./directStream";
 
 // The HTTP backend: the Musike server (web app, desktop app). The Android build swaps this module for native/api.ts.
@@ -45,31 +45,6 @@ export function resolveApiUrl(path: string): string {
 async function request<T>(path: string, init?: RequestInit & { json?: unknown }): Promise<T> {
   const url = resolveApiUrl(path);
   const { json, ...rest } = init ?? {};
-
-  // In native Android APK, use CapacitorHttp for bulletproof Java-level networking without CORS restrictions
-  if (Capacitor.isNativePlatform()) {
-    try {
-      const res = await CapacitorHttp.request({
-        url,
-        method: rest.method || (json !== undefined ? "POST" : "GET"),
-        headers: {
-          [LANG_HEADER]: getLang(),
-          ...(json !== undefined ? { "content-type": "application/json" } : {}),
-          ...(rest.headers as Record<string, string> | undefined),
-        },
-        data: json !== undefined ? json : undefined,
-      });
-      if (res.status === 204) return undefined as T;
-      const body = typeof res.data === "string" ? JSON.parse(res.data || "{}") : res.data;
-      if (res.status >= 400) {
-        throw new ApiError(res.status, body?.error ?? getT().player.httpError(res.status), body?.code);
-      }
-      return body as T;
-    } catch (err: any) {
-      if (err instanceof ApiError) throw err;
-      // Fallback to browser fetch if CapacitorHttp encounters an issue
-    }
-  }
 
   const res = await fetch(url, {
     ...rest,
