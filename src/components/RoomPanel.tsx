@@ -76,21 +76,11 @@ export function RoomPanel({
     if (typeof room.avatar === "number" && room.avatar >= 0) setAvatar(room.avatar);
   }, [room.avatar]);
 
-  // First-time visit: a centered popup asks for a name + avatar before anything else in Rooms.
-  const needsSetup = !savedNickname();
-
-  // Profile editor (name + emoji avatar) — required once on first visit, editable any time after.
+  // Profile editor (name + emoji avatar) — editable any time via Edit Identity.
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileName, setProfileName] = useState(() => nick);
   const [profileAvatar, setProfileAvatar] = useState<number>(() => avatar);
   const profileInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (needsSetup) {
-      const t = window.setTimeout(() => profileInputRef.current?.focus(), 350);
-      return () => window.clearTimeout(t);
-    }
-  }, [needsSetup]);
 
   const openProfileEditor = () => {
     setProfileName(nick);
@@ -310,10 +300,7 @@ export function RoomPanel({
             <button
               type="button"
               title="Change your name & avatar"
-              onClick={() => {
-                if (!inRoom && needsSetup) return;
-                openProfileEditor();
-              }}
+              onClick={openProfileEditor}
               className="size-12 rounded-2xl overflow-hidden shadow-md ring-2 ring-accent/40 shrink-0 transition-transform active:scale-95 bg-surface-2"
             >
               <AvatarArt id={avatar} className="size-full" />
@@ -590,12 +577,7 @@ export function RoomPanel({
           </div>
         </div>
 
-        {/* First-visit blocking popup (centered): name + avatar must be saved to join rooms */}
-        <Modal open={!inRoom && needsSetup} onClose={() => {}} title="Welcome — Set Your Profile" dismissible={false} center>
-          {profileBody}
-        </Modal>
-
-        {/* Identity editing any time: same popup, closable */}
+        {/* Identity editing any time: closable popup */}
         <Modal open={profileOpen} onClose={() => setProfileOpen(false)} title="Your Identity" center>
           {profileBody}
         </Modal>

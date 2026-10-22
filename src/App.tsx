@@ -8,6 +8,7 @@ import { Rail } from "./components/Rail";
 import { TitleBar } from "./components/TitleBar";
 import { desktop } from "./lib/desktop";
 import { SettingsDialog } from "./components/SettingsDialog";
+import { ProfileSetupDialog } from "./components/ProfileSetupDialog";
 import { Toasts } from "./components/Toasts";
 import { TrackMenu } from "./components/TrackMenu";
 import { FloatingVideo, Theater } from "./components/Video";
@@ -332,6 +333,7 @@ export default function App() {
       <AddToPlaylistDialog />
       <ShortcutsDialog />
       <SettingsDialog />
+      <ProfileSetupDialog onUpdateNickname={room.updateNickname} onUpdateAvatar={room.updateAvatar} />
       <Toasts />
     </div>
   );
