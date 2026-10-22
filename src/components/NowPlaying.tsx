@@ -1,6 +1,7 @@
 import {
   CaretDownIcon,
   MagnifyingGlassIcon,
+  MoonStarsIcon,
   QueueIcon,
   RadioIcon,
   VideoCameraSlashIcon,
@@ -11,6 +12,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useT } from "../i18n";
 import { cn } from "../lib/format";
+import { sleepRemaining, useSleepTimer } from "../lib/sleepTimer";
 import type { Track } from "../lib/types";
 import { selectCurrent, usePlayer, useStatusText } from "../player/player";
 import { useRoomStore } from "../stores/roomStore";
@@ -235,6 +237,65 @@ export function PanelDrawer() {
 }
 
 /** Full-screen Now Playing for phones. Drag down (or Back) to close. */
+/** Sleep timer controls: pick how long the music may keep playing from here. Shows only while music
+ * actually plays; when the countdown ends the player pauses itself, whatever engine owns playback. */
+function SleepTimerBar() {
+  const playing = usePlayer((s) => s.status === "playing");
+  const endsAt = useSleepTimer((s) => s.endsAt);
+  const cancelTimer = useSleepTimer((s) => s.cancel);
+  const startTimer = useSleepTimer((s) => s.start);
+  const [left, setLeft] = useState<string | null>(() => sleepRemaining(endsAt));
+  const expanded = endsAt == null;
+
+  useEffect(() => {
+    if (endsAt == null) {
+      setLeft(null);
+      return;
+    }
+    setLeft(sleepRemaining(endsAt));
+    const id = setInterval(() => setLeft(sleepRemaining(endsAt)), 1000);
+    return () => clearInterval(id);
+  }, [endsAt]);
+
+  const choose = (minutes: number) =>
+    startTimer(minutes, () => {
+      const { pause } = usePlayer.getState();
+      pause();
+    });
+
+  if (!playing && endsAt == null) return null;
+
+  return (
+    <div className="flex items-center justify-center gap-1.5 text-fg-3">
+      <MoonStarsIcon size={15} weight="bold" className={cn("shrink-0", endsAt != null && "text-accent-text")} />
+      {endsAt != null ? (
+        <>
+          <span className="text-[11px] font-semibold tabular-nums text-accent-text">{left}</span>
+          <button
+            type="button"
+            onClick={cancelTimer}
+            className="rounded-full px-2 py-0.5 text-[11px] font-semibold text-fg-3 transition-colors hover:text-fg"
+          >
+            Stop timer
+          </button>
+        </>
+      ) : (
+        expanded &&
+        [15, 30, 45, 60].map((minutes) => (
+          <button
+            key={minutes}
+            type="button"
+            onClick={() => choose(minutes)}
+            className="rounded-full bg-surface-1 px-2.5 py-1 text-[11px] font-semibold text-fg-2 transition-colors hover:bg-surface-3 hover:text-fg"
+          >
+            {minutes}m
+          </button>
+        ))
+      )}
+    </div>
+  );
+}
+
 export function NowPlayingSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const track = usePlayer(selectCurrent);
   const reduce = useReducedMotion();
@@ -300,7 +361,7 @@ export function NowPlayingSheet({ open, onClose }: { open: boolean; onClose: () 
                   <TrackHeading track={track} large />
                   <Scrubber touch />
                   <Transport big />
-                  
+                  <SleepTimerBar />
                 </div>
               </div>
             )}

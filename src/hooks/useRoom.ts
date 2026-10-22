@@ -34,6 +34,7 @@ import {
 } from "../lib/room";
 import { useVoice } from "./useVoice";
 import { backgroundKeepAlive } from "../lib/backgroundKeepAlive";
+import { popIn, popOut } from "../lib/tones";
 
 /** Request browser notification permission if not yet granted */
 function requestNotificationPermission() {
@@ -465,6 +466,11 @@ export function useRoom(handlers: RoomHandlers) {
           ? "A listener"
           : "A member";
     const text = event === "join" ? `${cleanNick} joined the room` : `${cleanNick} left the room`;
+    if (event === "join") {
+      popIn();
+    } else {
+      popOut();
+    }
     hRef.current.onToast?.(text);
     const sys = systemMsg(text);
     setChat((prev) => (prev.some((c) => c.id === sys.id) ? prev : [...prev, sys].slice(-120)));
