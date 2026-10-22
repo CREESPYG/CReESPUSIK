@@ -6,7 +6,7 @@
 
 A state-of-the-art open-source music streaming web application and social listening platform. Stream any track with high fidelity, create synchronized listening rooms with live chat, discover community playlists synced across devices, and enjoy a sleek modern UI built with React 19, TypeScript, and Tailwind CSS.
 
-[![Latest Release](https://img.shields.io/badge/Release-v1.6.11-c3ec52?style=for-the-badge&logo=android&logoColor=black)](https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.6.11)
+[![Latest Release](https://img.shields.io/badge/Release-v1.7.0-c3ec52?style=for-the-badge&logo=android&logoColor=black)](https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.7.0)
 [![Platform](https://img.shields.io/badge/Platform-Web%20%7C%20PWA-121318?style=for-the-badge&logo=vite&logoColor=c3ec52)](https://github.com/CREESPYG/CReESPUSIK)
 [![React 19](https://img.shields.io/badge/React-19.3-121318?style=for-the-badge&logo=react&logoColor=61DAFB)](https://react.dev)
 [![Vercel Ready](https://img.shields.io/badge/Deploy-Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://vercel.com)
@@ -15,7 +15,7 @@ A state-of-the-art open-source music streaming web application and social listen
 
 <br/>
 
-[🚀 **Live Web App**](#-getting-started) &nbsp;•&nbsp; [📦 **GitHub Release & Android APK**](https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.6.11) &nbsp;•&nbsp; [✨ Features](#-key-features) &nbsp;•&nbsp; [🛠️ Tech Stack](#-technology-stack)
+[🚀 **Live Web App**](#-getting-started) &nbsp;•&nbsp; [📦 **GitHub Release & Android APK**](https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.7.0) &nbsp;•&nbsp; [✨ Features](#-key-features) &nbsp;•&nbsp; [🛠️ Tech Stack](#-technology-stack)
 
 </div>
 
@@ -33,25 +33,25 @@ A state-of-the-art open-source music streaming web application and social listen
 
 ---
 
-## 📦 Android App Releases (v1.6.11)
+## 📦 Android App Releases (v1.7.0)
 
-Android APK builds are published directly in the **[GitHub Releases section](https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.6.11)**:
+Android APK builds are published directly in the **[GitHub Releases section](https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.7.0)**:
 
 | File | Type | Signature | Size | Download |
 |------|------|-----------|------|----------|
-| `CReEPUSIK-v1.6.11.apk` | **Production Release** | **v2 + v3 Signed** | `~6.4 MB` | [📥 Download via GitHub Release](https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.6.11) |
+| `CReEPUSIK-v1.7.0.apk` | **Production Release** | **v2 + v3 Signed** | `~6.4 MB` | [📥 Download via GitHub Release](https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.7.0) |
 
 ### 📲 How to Install on Android
-1. Download `CReEPUSIK-v1.6.11.apk` from the [GitHub Releases](https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.6.11) page.
+1. Download `CReEPUSIK-v1.7.0.apk` from the [GitHub Releases](https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.7.0) page.
 2. Tap **Install** (if prompted, allow *Install unknown apps* in your browser/file manager).
 3. Open **CReEPUSIK** and enjoy unlimited music streaming!
 
-### 🆕 What's New in v1.6.11
-- **Real Vector Character Avatar Arts:** Replaced emoji avatars with 16 bespoke vector character art portraits (8 boys and 8 girls) tailored for music listeners and artists. Fully offline, crisp on all resolutions, and synchronized across rooms and live chat.
-- **Android App Device Badges:** Real-time presence badge (`DeviceMobileIcon`) displayed beside members who join from the native CReEPUSIK Android app.
-- **Strict Directory & Presence Cleanup:** Automatic session clearance on page close/refresh plus continuous live-presence directory pruning eliminates phantom rooms and ghost listeners.
-- **Interruption-Free Room Sync:** 5-second drift tolerance with no-op remote playback skipping ensures music plays uninterrupted when members join or leave.
-- **Native Wake Lock & Playback Hardening:** Long-renewable CPU wake lock in Native PlaybackService guarantees unbroken streaming with the screen off.
+### 🆕 What's New in v1.7.0
+- **Uninterrupted Background Playback Engine (Musike 1.5.1 Reverse Engineered):** Continuous 30-minute CPU WakeLock retention, immediate MediaStyle ForegroundService promotion, and zero audio cuts when minimizing, locking the screen, or multitasking.
+- **Unthrottled Background WebView:** WebView timers remain active on `onPause()` / `onStop()`, keeping queue advance, live room synchronization, and lock screen media actions responsive at all times.
+- **Audio Becoming Noisy Safety:** Integrated `AUDIO_BECOMING_NOISY` receiver automatically pauses playback when headphones or Bluetooth audio disconnects.
+- **Instant Album Art Delivery:** Background artwork decoding asynchronously updates the lock screen notification with high-res cover art immediately on track change.
+- **Real Vector Character Avatar Arts:** 16 exclusive modern streetwear and music character arts replacing emojis with crisp, offline-ready vector avatars.
 
 ---
 

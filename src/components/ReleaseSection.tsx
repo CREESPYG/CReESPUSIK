@@ -17,10 +17,10 @@ export interface ReleaseSectionProps {
 }
 
 const GITHUB_REPO_URL = "https://github.com/CREESPYG/CReESPUSIK";
-const GITHUB_RELEASE_URL = "https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.6.11";
+const GITHUB_RELEASE_URL = "https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.7.0";
 const GITHUB_APK_RAW_URL =
-  "https://github.com/CREESPYG/CReESPUSIK/releases/download/v1.6.11/CReEPUSIK-v1.6.11.apk";
-const DIRECT_APK_URL = "/downloads/CReEPUSIK-v1.6.11.apk";
+  "https://github.com/CREESPYG/CReESPUSIK/releases/download/v1.7.0/CReEPUSIK-v1.7.0.apk";
+const DIRECT_APK_URL = "/downloads/CReEPUSIK-v1.7.0.apk";
 
 export function ReleaseSection({ className, showTitle = true }: ReleaseSectionProps) {
   const [copied, setCopied] = useState(false);
@@ -60,7 +60,7 @@ export function ReleaseSection({ className, showTitle = true }: ReleaseSectionPr
             </div>
             <span className="flex items-center gap-1.5 rounded-full bg-accent/10 px-3 py-1 text-xs font-semibold text-accent-text ring-1 ring-accent/25">
               <span className="size-2 rounded-full bg-accent animate-pulse" />
-              v1.6.11 Latest
+              v1.7.0 Latest
             </span>
           </div>
         )}
@@ -72,10 +72,10 @@ export function ReleaseSection({ className, showTitle = true }: ReleaseSectionPr
               <div className="flex items-center gap-2">
                 <span className="text-base font-bold text-fg">CReEPUSIK for Android</span>
                 <span className="rounded-md bg-surface-4 px-2 py-0.5 text-[11px] font-mono font-medium text-accent-text">
-                  v1.6.11 (Build 10611)
+                  v1.7.0 (Build 10700)
                 </span>
               </div>
-              <p className="text-xs text-fg-3">Real-time room synchronization & zero-latency release</p>
+              <p className="text-xs text-fg-3">Uninterrupted background playback & continuous stream engine</p>
             </div>
             <span className="inline-flex items-center gap-1 text-[11px] font-medium text-accent-text bg-accent/10 px-2.5 py-1 rounded-full">
               <ShieldCheckIcon size={14} weight="fill" />
@@ -87,32 +87,32 @@ export function ReleaseSection({ className, showTitle = true }: ReleaseSectionPr
           <div className="mt-4 space-y-3">
             <div className="flex items-center gap-1.5 text-xs font-semibold text-fg">
               <RocketLaunchIcon size={16} className="text-accent-text" />
-              <span>What's New in v1.6.11</span>
+              <span>What's New in v1.7.0</span>
             </div>
 
             <ul className="space-y-2 text-xs text-fg-2">
               <li className="flex items-start gap-2 rounded-lg bg-surface-1/60 p-2.5">
                 <span className="mt-0.5 size-1.5 rounded-full bg-accent shrink-0" />
                 <div>
-                  <strong className="text-fg">Real Vector Character Avatar Arts:</strong> 16 unique vector character art portraits (8 boys and 8 girls) replacing emojis with modern music and streetwear styled avatars, synchronized across rooms and live chat.
+                  <strong className="text-fg">Uninterrupted Background Playback:</strong> Reverse-engineered from Musike 1.5.1 APK — featuring continuous 30-minute CPU WakeLock retention, immediate MediaStyle ForegroundService promotion, and zero audio cuts when minimizing, locking screen, or multitasking.
                 </div>
               </li>
               <li className="flex items-start gap-2 rounded-lg bg-surface-1/60 p-2.5">
                 <span className="mt-0.5 size-1.5 rounded-full bg-accent shrink-0" />
                 <div>
-                  <strong className="text-fg">Android App Device Badges:</strong> Real-time device badge displayed beside members and chat messages originating from the native Android app.
+                  <strong className="text-fg">Unthrottled Background WebView:</strong> Timer suspension bypassed on app pause/stop, keeping audio decoding, radio stream buffering, queue advance, and lock screen media actions responsive at all times.
                 </div>
               </li>
               <li className="flex items-start gap-2 rounded-lg bg-surface-1/60 p-2.5">
                 <span className="mt-0.5 size-1.5 rounded-full bg-accent shrink-0" />
                 <div>
-                  <strong className="text-fg">Strict Directory & Presence Cleanup:</strong> Auto-leave on window close/refresh and periodic directory live-presence pruning eliminates phantom rooms and ghost listeners.
+                  <strong className="text-fg">Audio Becoming Noisy Receiver:</strong> Automatic playback pause when headphones or Bluetooth audio disconnects.
                 </div>
               </li>
               <li className="flex items-start gap-2 rounded-lg bg-surface-1/60 p-2.5">
                 <span className="mt-0.5 size-1.5 rounded-full bg-accent shrink-0" />
                 <div>
-                  <strong className="text-fg">Unbroken Room Playback & Wake Lock:</strong> 5-second drift tolerance ignores heartbeat noise during join/leave, while the native engine holds a renewed CPU wake lock during background streaming.
+                  <strong className="text-fg">Real Vector Character Avatar Arts:</strong> 16 unique vector character art portraits (8 boys and 8 girls) replacing emojis with modern streetwear/music styled avatars.
                 </div>
               </li>
             </ul>
@@ -153,7 +153,7 @@ export function ReleaseSection({ className, showTitle = true }: ReleaseSectionPr
           </div>
           <span className="flex items-center gap-1.5 rounded-full bg-accent/10 px-3 py-1 text-xs font-semibold text-accent-text ring-1 ring-accent/25">
             <span className="size-2 rounded-full bg-accent animate-pulse" />
-            v1.6.11 Latest
+            v1.7.0 Latest
           </span>
         </div>
       )}
@@ -167,7 +167,7 @@ export function ReleaseSection({ className, showTitle = true }: ReleaseSectionPr
             <div className="flex items-center gap-2">
               <span className="text-lg font-bold text-fg">CReEPUSIK for Android</span>
               <span className="rounded-md bg-surface-4 px-2 py-0.5 text-[11px] font-mono font-medium text-fg-2">
-                Build 10611
+                Build 10700
               </span>
             </div>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-fg-3">
@@ -185,7 +185,7 @@ export function ReleaseSection({ className, showTitle = true }: ReleaseSectionPr
           <div className="flex items-center gap-2">
             <a
               href={DIRECT_APK_URL}
-              download="CReEPUSIK-v1.6.11.apk"
+              download="CReEPUSIK-v1.7.0.apk"
               className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-accent px-5 text-sm font-semibold text-accent-ink shadow-lg shadow-accent/20 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
             >
               <DownloadSimpleIcon size={18} weight="bold" />
@@ -267,7 +267,7 @@ export function ReleaseSection({ className, showTitle = true }: ReleaseSectionPr
         </div>
         <ol className="list-decimal list-inside space-y-1 text-fg-3 leading-relaxed">
           <li>Tap the <strong>Download APK</strong> button above to download the file directly to your phone.</li>
-          <li>Open your notification bar or Downloads folder and tap on <code className="rounded bg-surface-3 px-1 py-0.5 text-fg">CReEPUSIK-v1.6.11.apk</code>.</li>
+          <li>Open your notification bar or Downloads folder and tap on <code className="rounded bg-surface-3 px-1 py-0.5 text-fg">CReEPUSIK-v1.7.0.apk</code>.</li>
           <li>If prompted, tap <em>Settings</em> and allow <em>"Install unknown apps"</em> for your browser.</li>
           <li>Tap <strong>Install</strong>, then launch CReEPUSIK to start listening!</li>
         </ol>
