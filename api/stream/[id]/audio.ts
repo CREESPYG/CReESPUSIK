@@ -7,6 +7,15 @@ export default async function handler(req: IncomingMessage & { query?: Record<st
     // Path: /api/stream/:id/audio
     const videoId = req.query?.id || parts[2] || url.searchParams.get("id") || "";
 
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "*");
+    if (req.method === "OPTIONS") {
+      res.statusCode = 204;
+      res.end();
+      return;
+    }
+
     if (!videoId || !/^[A-Za-z0-9_-]{11}$/.test(videoId)) {
       res.statusCode = 400;
       res.setHeader("Content-Type", "application/json");

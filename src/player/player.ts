@@ -7,6 +7,7 @@ import type { Track } from "../lib/types";
 import { useLibrary } from "../stores/library";
 import { openSettings } from "../stores/system";
 import { toast } from "../stores/ui";
+import { Capacitor } from "@capacitor/core";
 import { ytFallback } from "./ytFallback";
 
 export type Repeat = "off" | "all" | "one";
@@ -314,9 +315,9 @@ export const usePlayer = create<PlayerState>((set, get) => {
       if (mine !== token) return;
       const s = get();
       const currentTrack = s.queue[s.index];
-      // YouTube Bot Check or Stream Error Fallback:
-      // If YouTube blocks with bot check or stream refuses, seamlessly play via YouTube Player fallback engine!
-      if (currentTrack?.id) {
+      // YouTube Bot Check or Stream Error Fallback (Desktop/web only):
+      // On mobile APK, keeping native HTML5 audio is required for background playback and lockscreen controls.
+      if (currentTrack?.id && !Capacitor.isNativePlatform()) {
         console.warn("[Player] Stream refused (" + (code || message || "error") + "), engaging YouTube Player engine fallback...");
         media.removeAttribute("src");
         media.load();

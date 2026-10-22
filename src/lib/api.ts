@@ -12,15 +12,66 @@ import {
 } from "./apiTypes";
 import type { AlbumCard, AlbumPage, ArtistPage, Genre, GenreArtist, GenrePage, Library, Playlist, Track } from "./types";
 
+import { Capacitor, CapacitorHttp, registerPlugin, type PluginListenerHandle } from "@capacitor/core";
+import { resolveDirectAudio, invalidateDirectAudio } from "./directStream";
+
 // The HTTP backend: the Musike server (web app, desktop app). The Android build swaps this module for native/api.ts.
 export * from "./apiTypes";
 
 /** The server answers errors (and YouTube Music answers names, like genres) in the app's language. */
 const LANG_HEADER = "x-musike-lang";
 
+export const REMOTE_API_HOST = "https://creepusik.vercel.app";
+
+/** Resolves API paths: uses relative paths in Vite dev server (port 5173), but prepends remote server for Capacitor APK */
+export function resolveApiUrl(path: string): string {
+  if (path.startsWith("http://") || path.startsWith("https://")) return path;
+  if (typeof window !== "undefined" && window.location.hostname === "localhost" && window.location.port === "5173") {
+    return path;
+  }
+  if (
+    typeof window !== "undefined" &&
+    (Capacitor.isNativePlatform() ||
+      window.location.protocol === "capacitor:" ||
+      window.location.protocol === "file:" ||
+      (window.location.hostname === "localhost" && window.location.port !== "5173"))
+  ) {
+    const cleanPath = path.startsWith("/") ? path : `/${path}`;
+    return `${REMOTE_API_HOST}${cleanPath}`;
+  }
+  return path;
+}
+
 async function request<T>(path: string, init?: RequestInit & { json?: unknown }): Promise<T> {
+  const url = resolveApiUrl(path);
   const { json, ...rest } = init ?? {};
-  const res = await fetch(path, {
+
+  // In native Android APK, use CapacitorHttp for bulletproof Java-level networking without CORS restrictions
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const res = await CapacitorHttp.request({
+        url,
+        method: rest.method || (json !== undefined ? "POST" : "GET"),
+        headers: {
+          [LANG_HEADER]: getLang(),
+          ...(json !== undefined ? { "content-type": "application/json" } : {}),
+          ...(rest.headers as Record<string, string> | undefined),
+        },
+        data: json !== undefined ? json : undefined,
+      });
+      if (res.status === 204) return undefined as T;
+      const body = typeof res.data === "string" ? JSON.parse(res.data || "{}") : res.data;
+      if (res.status >= 400) {
+        throw new ApiError(res.status, body?.error ?? getT().player.httpError(res.status), body?.code);
+      }
+      return body as T;
+    } catch (err: any) {
+      if (err instanceof ApiError) throw err;
+      // Fallback to browser fetch if CapacitorHttp encounters an issue
+    }
+  }
+
+  const res = await fetch(url, {
     ...rest,
     headers: {
       [LANG_HEADER]: getLang(),
@@ -296,9 +347,21 @@ export const api: MusikeApi = {
   updateYtdlp: (channel: Channel) => request<SystemJob>("/api/system/ytdlp", { method: "POST", json: { channel } }),
 };
 
-/** What a media element plays for a track: here, the server's stream proxy. The Android backend resolves it on the phone. */
-export const streamSource = (id: string, kind: "audio" | "video", quality: "sd" | "hd"): string | Promise<string> =>
-  kind === "audio" ? `/api/stream/${id}/audio` : `/api/stream/${id}/video?q=${quality}`;
+/** What a media element plays for a track: resolves direct GoogleVideo CDN stream on mobile or server proxy on web. */
+export const streamSource = async (
+  id: string,
+  kind: "audio" | "video" = "audio",
+  quality: "sd" | "hd" = "sd"
+): Promise<string> => {
+  if (kind === "audio") {
+    // 1. Direct device-side resolution: signed with device IP, plays natively in <audio> with zero timeouts
+    const direct = await resolveDirectAudio(id).catch(() => null);
+    if (direct) return direct;
+    // 2. Server-side stream proxy fallback
+    return resolveApiUrl(`/api/stream/${id}/audio`);
+  }
+  return resolveApiUrl(`/api/stream/${id}/video?q=${quality}`);
+};
 
 /** Saves a text file the way this platform does it: a browser download (the desktop app shows "Save as"). */
 export async function saveFile(name: string, text: string) {
@@ -309,8 +372,6 @@ export async function saveFile(name: string, text: string) {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
-
-import { registerPlugin, type PluginListenerHandle } from "@capacitor/core";
 
 interface PlaybackPlugin {
   update(options: {
@@ -398,10 +459,11 @@ const iosSystemMedia: SystemMedia = {
 export const systemMedia: SystemMedia = iosBridge ? iosSystemMedia : androidSystemMedia;
 
 /** What this build can do. The Android build has no video yet, no yt-dlp to manage, and retries expired streams. */
-export const capabilities = { video: false, engineSettings: false, retryOnError: false };
+export const capabilities = { video: false, engineSettings: false, retryOnError: true };
 
 /** Media elements hide the HTTP error body; fetch it to show the real reason. */
 export async function explainStreamError(url: string): Promise<{ message: string; code?: ErrorCode }> {
+  invalidateDirectAudio(url);
   const t = getT();
   try {
     const res = await fetch(url, { headers: { Range: "bytes=0-0", [LANG_HEADER]: getLang() } });
