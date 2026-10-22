@@ -222,7 +222,7 @@ export interface PublicRoomEntry {
 
 export function inviteLink(code: string): string {
   const cleanCode = code.toUpperCase();
-  const origin = typeof location !== "undefined" && location.origin ? location.origin : "https://creespusik.vercel.app";
+  const origin = typeof location !== "undefined" && location.origin ? location.origin : "https://creepusik.vercel.app";
   return `${origin}/?room=${cleanCode}#room=${cleanCode}`;
 }
 
