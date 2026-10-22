@@ -17,10 +17,10 @@ export interface ReleaseSectionProps {
 }
 
 const GITHUB_REPO_URL = "https://github.com/CREESPYG/CReESPUSIK";
-const GITHUB_RELEASE_URL = "https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.6.8";
+const GITHUB_RELEASE_URL = "https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.6.9";
 const GITHUB_APK_RAW_URL =
-  "https://github.com/CREESPYG/CReESPUSIK/releases/download/v1.6.8/CReEPUSIK-v1.6.8.apk";
-const DIRECT_APK_URL = "/downloads/CReEPUSIK-v1.6.8.apk";
+  "https://github.com/CREESPYG/CReESPUSIK/releases/download/v1.6.9/CReEPUSIK-v1.6.9.apk";
+const DIRECT_APK_URL = "/downloads/CReEPUSIK-v1.6.9.apk";
 
 export function ReleaseSection({ className, showTitle = true }: ReleaseSectionProps) {
   const [copied, setCopied] = useState(false);
@@ -60,7 +60,7 @@ export function ReleaseSection({ className, showTitle = true }: ReleaseSectionPr
             </div>
             <span className="flex items-center gap-1.5 rounded-full bg-accent/10 px-3 py-1 text-xs font-semibold text-accent-text ring-1 ring-accent/25">
               <span className="size-2 rounded-full bg-accent animate-pulse" />
-              v1.6.8 Latest
+              v1.6.9 Latest
             </span>
           </div>
         )}
@@ -72,7 +72,7 @@ export function ReleaseSection({ className, showTitle = true }: ReleaseSectionPr
               <div className="flex items-center gap-2">
                 <span className="text-base font-bold text-fg">CReEPUSIK for Android</span>
                 <span className="rounded-md bg-surface-4 px-2 py-0.5 text-[11px] font-mono font-medium text-accent-text">
-                  v1.6.8 (Build 10608)
+                  v1.6.9 (Build 10609)
                 </span>
               </div>
               <p className="text-xs text-fg-3">Real-time room synchronization & zero-latency release</p>
@@ -87,32 +87,32 @@ export function ReleaseSection({ className, showTitle = true }: ReleaseSectionPr
           <div className="mt-4 space-y-3">
             <div className="flex items-center gap-1.5 text-xs font-semibold text-fg">
               <RocketLaunchIcon size={16} className="text-accent-text" />
-              <span>What's New in v1.6.8</span>
+              <span>What's New in v1.6.9</span>
             </div>
 
             <ul className="space-y-2 text-xs text-fg-2">
               <li className="flex items-start gap-2 rounded-lg bg-surface-1/60 p-2.5">
                 <span className="mt-0.5 size-1.5 rounded-full bg-accent shrink-0" />
                 <div>
-                  <strong className="text-fg">Lightweight APK (~3.9 MB):</strong> Removed all inherited installer dead weight from the package — 93% lighter, faster to download, share, and install.
+                  <strong className="text-fg">Native Media3 Engine:</strong> Music now plays on a real ExoPlayer inside the OS — the same architecture Spotify uses. Playback truly continues when the app is minimized, locked, or swiped from recents.
                 </div>
               </li>
               <li className="flex items-start gap-2 rounded-lg bg-surface-1/60 p-2.5">
                 <span className="mt-0.5 size-1.5 rounded-full bg-accent shrink-0" />
                 <div>
-                  <strong className="text-fg">Unbroken Background Playback:</strong> Wake-lock keepalive + foreground-service refresh on minimize keeps songs playing continuously when the app is minimized or still in recents.
+                  <strong className="text-fg">Spotify-Grade Media Controls:</strong> Rich media notifications, lock screen controls, headphone buttons (pause resumes cleanly), and Bluetooth controls via Media3 MediaSession.
                 </div>
               </li>
               <li className="flex items-start gap-2 rounded-lg bg-surface-1/60 p-2.5">
                 <span className="mt-0.5 size-1.5 rounded-full bg-accent shrink-0" />
                 <div>
-                  <strong className="text-fg">Battery Optimization Exemption:</strong> One-tap system prompt so aggressive battery managers cannot suspend music while you listen in the background.
+                  <strong className="text-fg">Polite Attention Handling:</strong> Music pauses automatically when headphones are unplugged and yields to navigation or calls, resuming when the system allows.
                 </div>
               </li>
               <li className="flex items-start gap-2 rounded-lg bg-surface-1/60 p-2.5">
                 <span className="mt-0.5 size-1.5 rounded-full bg-accent shrink-0" />
                 <div>
-                  <strong className="text-fg">Room Invite Fix:</strong> Correct fallback hostname when an invite link refreshes in the Android app.
+                  <strong className="text-fg">Playback Survives the System:</strong> Track artwork, title, artist, and progress are remembered natively, so the media bar shows the right song even after Android kills the app's UI process.
                 </div>
               </li>
             </ul>
@@ -153,7 +153,7 @@ export function ReleaseSection({ className, showTitle = true }: ReleaseSectionPr
           </div>
           <span className="flex items-center gap-1.5 rounded-full bg-accent/10 px-3 py-1 text-xs font-semibold text-accent-text ring-1 ring-accent/25">
             <span className="size-2 rounded-full bg-accent animate-pulse" />
-            v1.6.8 Latest
+            v1.6.9 Latest
           </span>
         </div>
       )}
@@ -167,7 +167,7 @@ export function ReleaseSection({ className, showTitle = true }: ReleaseSectionPr
             <div className="flex items-center gap-2">
               <span className="text-lg font-bold text-fg">CReEPUSIK for Android</span>
               <span className="rounded-md bg-surface-4 px-2 py-0.5 text-[11px] font-mono font-medium text-fg-2">
-                Build 10608
+                Build 10609
               </span>
             </div>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-fg-3">
@@ -176,7 +176,7 @@ export function ReleaseSection({ className, showTitle = true }: ReleaseSectionPr
                 Verified Signature (v2 + v3)
               </span>
               <span>•</span>
-              <span>Size: ~3.9 MB</span>
+              <span>Size: ~6.4 MB</span>
               <span>•</span>
               <span>Target: Android 8.0 - 15+</span>
             </div>
@@ -185,7 +185,7 @@ export function ReleaseSection({ className, showTitle = true }: ReleaseSectionPr
           <div className="flex items-center gap-2">
             <a
               href={DIRECT_APK_URL}
-              download="CReEPUSIK-v1.6.8.apk"
+              download="CReEPUSIK-v1.6.9.apk"
               className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-accent px-5 text-sm font-semibold text-accent-ink shadow-lg shadow-accent/20 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
             >
               <DownloadSimpleIcon size={18} weight="bold" />
@@ -267,7 +267,7 @@ export function ReleaseSection({ className, showTitle = true }: ReleaseSectionPr
         </div>
         <ol className="list-decimal list-inside space-y-1 text-fg-3 leading-relaxed">
           <li>Tap the <strong>Download APK</strong> button above to download the file directly to your phone.</li>
-          <li>Open your notification bar or Downloads folder and tap on <code className="rounded bg-surface-3 px-1 py-0.5 text-fg">CReEPUSIK-v1.6.8.apk</code>.</li>
+          <li>Open your notification bar or Downloads folder and tap on <code className="rounded bg-surface-3 px-1 py-0.5 text-fg">CReEPUSIK-v1.6.9.apk</code>.</li>
           <li>If prompted, tap <em>Settings</em> and allow <em>"Install unknown apps"</em> for your browser.</li>
           <li>Tap <strong>Install</strong>, then launch CReEPUSIK to start listening!</li>
         </ol>

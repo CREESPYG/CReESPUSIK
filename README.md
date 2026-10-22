@@ -6,7 +6,7 @@
 
 A state-of-the-art open-source music streaming web application and social listening platform. Stream any track with high fidelity, create synchronized listening rooms with live chat, discover community playlists synced across devices, and enjoy a sleek modern UI built with React 19, TypeScript, and Tailwind CSS.
 
-[![Latest Release](https://img.shields.io/badge/Release-v1.6.8-c3ec52?style=for-the-badge&logo=android&logoColor=black)](https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.6.8)
+[![Latest Release](https://img.shields.io/badge/Release-v1.6.9-c3ec52?style=for-the-badge&logo=android&logoColor=black)](https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.6.9)
 [![Platform](https://img.shields.io/badge/Platform-Web%20%7C%20PWA-121318?style=for-the-badge&logo=vite&logoColor=c3ec52)](https://github.com/CREESPYG/CReESPUSIK)
 [![React 19](https://img.shields.io/badge/React-19.3-121318?style=for-the-badge&logo=react&logoColor=61DAFB)](https://react.dev)
 [![Vercel Ready](https://img.shields.io/badge/Deploy-Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://vercel.com)
@@ -15,7 +15,7 @@ A state-of-the-art open-source music streaming web application and social listen
 
 <br/>
 
-[🚀 **Live Web App**](#-getting-started) &nbsp;•&nbsp; [📦 **GitHub Release & Android APK**](https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.6.8) &nbsp;•&nbsp; [✨ Features](#-key-features) &nbsp;•&nbsp; [🛠️ Tech Stack](#-technology-stack)
+[🚀 **Live Web App**](#-getting-started) &nbsp;•&nbsp; [📦 **GitHub Release & Android APK**](https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.6.9) &nbsp;•&nbsp; [✨ Features](#-key-features) &nbsp;•&nbsp; [🛠️ Tech Stack](#-technology-stack)
 
 </div>
 
@@ -33,24 +33,24 @@ A state-of-the-art open-source music streaming web application and social listen
 
 ---
 
-## 📦 Android App Releases (v1.6.8)
+## 📦 Android App Releases (v1.6.9)
 
-Android APK builds are published directly in the **[GitHub Releases section](https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.6.8)**:
+Android APK builds are published directly in the **[GitHub Releases section](https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.6.9)**:
 
 | File | Type | Signature | Size | Download |
 |------|------|-----------|------|----------|
-| `CReEPUSIK-v1.6.8.apk` | **Production Release** | **v2 + v3 Signed** | `~3.9 MB` | [📥 Download via GitHub Release](https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.6.8) |
+| `CReEPUSIK-v1.6.9.apk` | **Production Release** | **v2 + v3 Signed** | `~6.4 MB` | [📥 Download via GitHub Release](https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.6.9) |
 
 ### 📲 How to Install on Android
-1. Download `CReEPUSIK-v1.6.8.apk` from the [GitHub Releases](https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.6.8) page.
+1. Download `CReEPUSIK-v1.6.9.apk` from the [GitHub Releases](https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.6.9) page.
 2. Tap **Install** (if prompted, allow *Install unknown apps* in your browser/file manager).
 3. Open **CReEPUSIK** and enjoy unlimited music streaming!
 
-### 🆕 What's New in v1.6.8
-- **Lightweight APK (~3.9 MB):** Removed all inherited installer dead weight from the package — 93% lighter, faster to download, share, and install.
-- **Unbroken Background Playback:** Wake-lock keepalive + foreground-service refresh on minimize keeps songs playing continuously when the app is minimized or still in recents.
-- **Battery Optimization Exemption:** One-tap system prompt so aggressive battery managers cannot suspend music while you listen in the background.
-- **Room Invite Fix:** Correct fallback hostname when an invite link refreshes in the Android app.
+### 🆕 What's New in v1.6.9
+- **Native Media3 Engine:** Music now plays on a real ExoPlayer inside the OS — the same architecture Spotify uses. Playback truly continues when the app is minimized, locked, or swiped from recents.
+- **Spotify-Grade Media Controls:** Rich media notifications, lock screen controls, headphone buttons (pause resumes cleanly), and Bluetooth controls via Media3 MediaSession.
+- **Polite Attention Handling:** Music pauses automatically when headphones are unplugged and yields to navigation or calls, resuming when the system allows.
+- **Playback Survives the System:** Track artwork, title, artist, and progress are remembered natively, so the media bar shows the right song even after Android kills the app's UI process.
 
 ---
 

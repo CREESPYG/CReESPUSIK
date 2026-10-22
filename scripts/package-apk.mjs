@@ -7,7 +7,7 @@ const androidDir = path.join(rootDir, "android");
 const builtApk = path.join(androidDir, "app", "build", "outputs", "apk", "release", "app-release.apk");
 const publicDownloads = path.join(rootDir, "public", "downloads");
 const distDownloads = path.join(rootDir, "dist", "downloads");
-const targetName = "CReEPUSIK-v1.6.8.apk";
+const targetName = "CReEPUSIK-v1.6.9.apk";
 
 console.log("==> 1. Syncing web assets with Capacitor Android...");
 // Never bundle an APK inside the APK: the downloads folder ships the previous release
