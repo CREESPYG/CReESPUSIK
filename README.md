@@ -6,7 +6,7 @@
 
 A state-of-the-art open-source music streaming web application and social listening platform. Stream any track with high fidelity, create synchronized listening rooms with live chat, discover community playlists synced across devices, and enjoy a sleek modern UI built with React 19, TypeScript, and Tailwind CSS.
 
-[![Latest Release](https://img.shields.io/badge/Release-v1.6.7-c3ec52?style=for-the-badge&logo=android&logoColor=black)](https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.6.7)
+[![Latest Release](https://img.shields.io/badge/Release-v1.6.8-c3ec52?style=for-the-badge&logo=android&logoColor=black)](https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.6.8)
 [![Platform](https://img.shields.io/badge/Platform-Web%20%7C%20PWA-121318?style=for-the-badge&logo=vite&logoColor=c3ec52)](https://github.com/CREESPYG/CReESPUSIK)
 [![React 19](https://img.shields.io/badge/React-19.3-121318?style=for-the-badge&logo=react&logoColor=61DAFB)](https://react.dev)
 [![Vercel Ready](https://img.shields.io/badge/Deploy-Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://vercel.com)
@@ -15,7 +15,7 @@ A state-of-the-art open-source music streaming web application and social listen
 
 <br/>
 
-[🚀 **Live Web App**](#-getting-started) &nbsp;•&nbsp; [📦 **GitHub Release & Android APK**](https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.6.7) &nbsp;•&nbsp; [✨ Features](#-key-features) &nbsp;•&nbsp; [🛠️ Tech Stack](#-technology-stack)
+[🚀 **Live Web App**](#-getting-started) &nbsp;•&nbsp; [📦 **GitHub Release & Android APK**](https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.6.8) &nbsp;•&nbsp; [✨ Features](#-key-features) &nbsp;•&nbsp; [🛠️ Tech Stack](#-technology-stack)
 
 </div>
 
@@ -33,24 +33,24 @@ A state-of-the-art open-source music streaming web application and social listen
 
 ---
 
-## 📦 Android App Releases (v1.6.7)
+## 📦 Android App Releases (v1.6.8)
 
-Android APK builds are published directly in the **[GitHub Releases section](https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.6.7)**:
+Android APK builds are published directly in the **[GitHub Releases section](https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.6.8)**:
 
 | File | Type | Signature | Size | Download |
 |------|------|-----------|------|----------|
-| `CReEPUSIK-v1.6.7.apk` | **Production Release** | **v2 + v3 Signed** | `~53.4 MB` | [📥 Download via GitHub Release](https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.6.7) |
+| `CReEPUSIK-v1.6.8.apk` | **Production Release** | **v2 + v3 Signed** | `~3.9 MB` | [📥 Download via GitHub Release](https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.6.8) |
 
 ### 📲 How to Install on Android
-1. Download `CReEPUSIK-v1.6.7.apk` from the [GitHub Releases](https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.6.7) page.
+1. Download `CReEPUSIK-v1.6.8.apk` from the [GitHub Releases](https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.6.8) page.
 2. Tap **Install** (if prompted, allow *Install unknown apps* in your browser/file manager).
 3. Open **CReEPUSIK** and enjoy unlimited music streaming!
 
-### 🆕 What's New in v1.6.7
-- **Zero-Lag Realtime Room Control:** Configured Supabase high-throughput pipeline (100 events/sec, 2.5s keepalive) with dual-channel broadcasting for instant host & guest permission updates.
-- **Live Room Activity Indicators:** Real-time pulsating status indicators on the Navigation Rail, Mobile Tab Bar, and Home dashboard broadcast banner when rooms are active.
-- **Continuous Track Radio:** Fixed track queue continuity and seamless playback transitions when initiating "Start Radio from Track".
-- **Android Native Notification Pipeline:** Lock screen media controls with public channel notification visibility and background audio service.
+### 🆕 What's New in v1.6.8
+- **Lightweight APK (~3.9 MB):** Removed all inherited installer dead weight from the package — 93% lighter, faster to download, share, and install.
+- **Unbroken Background Playback:** Wake-lock keepalive + foreground-service refresh on minimize keeps songs playing continuously when the app is minimized or still in recents.
+- **Battery Optimization Exemption:** One-tap system prompt so aggressive battery managers cannot suspend music while you listen in the background.
+- **Room Invite Fix:** Correct fallback hostname when an invite link refreshes in the Android app.
 
 ---
 

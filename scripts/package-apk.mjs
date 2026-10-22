@@ -7,10 +7,14 @@ const androidDir = path.join(rootDir, "android");
 const builtApk = path.join(androidDir, "app", "build", "outputs", "apk", "release", "app-release.apk");
 const publicDownloads = path.join(rootDir, "public", "downloads");
 const distDownloads = path.join(rootDir, "dist", "downloads");
-const targetName = "CReEPUSIK-v1.6.7.apk";
+const targetName = "CReEPUSIK-v1.6.8.apk";
 
 console.log("==> 1. Syncing web assets with Capacitor Android...");
+// Never bundle an APK inside the APK: the downloads folder ships the previous release
+// (~52 MB of dead weight) into the assets, which made every build bigger and heavier.
+fs.rmSync(path.join(rootDir, "dist", "downloads"), { recursive: true, force: true });
 execSync("npx cap sync android", { cwd: rootDir, stdio: "inherit" });
+fs.rmSync(path.join(androidDir, "app", "src", "main", "assets", "public", "downloads"), { recursive: true, force: true });
 
 console.log("==> 1b. Generating all Android icons & splash screens from brand assets...");
 execSync("powershell -ExecutionPolicy Bypass -File scripts\\generate-android-icons.ps1", { cwd: rootDir, stdio: "inherit" });
