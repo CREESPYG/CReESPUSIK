@@ -17,10 +17,10 @@ export interface ReleaseSectionProps {
 }
 
 const GITHUB_REPO_URL = "https://github.com/CREESPYG/CReESPUSIK";
-const GITHUB_RELEASE_URL = "https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.6.6";
+const GITHUB_RELEASE_URL = "https://github.com/CREESPYG/CReESPUSIK/releases/tag/v1.6.7";
 const GITHUB_APK_RAW_URL =
-  "https://github.com/CREESPYG/CReESPUSIK/releases/download/v1.6.6/CReEPUSIK-v1.6.6.apk";
-const DIRECT_APK_URL = "/downloads/CReEPUSIK-v1.6.6.apk";
+  "https://github.com/CREESPYG/CReESPUSIK/releases/download/v1.6.7/CReEPUSIK-v1.6.7.apk";
+const DIRECT_APK_URL = "/downloads/CReEPUSIK-v1.6.7.apk";
 
 export function ReleaseSection({ className, showTitle = true }: ReleaseSectionProps) {
   const [copied, setCopied] = useState(false);
@@ -60,7 +60,7 @@ export function ReleaseSection({ className, showTitle = true }: ReleaseSectionPr
             </div>
             <span className="flex items-center gap-1.5 rounded-full bg-accent/10 px-3 py-1 text-xs font-semibold text-accent-text ring-1 ring-accent/25">
               <span className="size-2 rounded-full bg-accent animate-pulse" />
-              v1.6.6 Latest
+              v1.6.7 Latest
             </span>
           </div>
         )}
@@ -72,7 +72,7 @@ export function ReleaseSection({ className, showTitle = true }: ReleaseSectionPr
               <div className="flex items-center gap-2">
                 <span className="text-base font-bold text-fg">CReEPUSIK for Android</span>
                 <span className="rounded-md bg-surface-4 px-2 py-0.5 text-[11px] font-mono font-medium text-accent-text">
-                  v1.6.6 (Build 10606)
+                  v1.6.7 (Build 10607)
                 </span>
               </div>
               <p className="text-xs text-fg-3">Real-time room synchronization & zero-latency release</p>
@@ -87,7 +87,7 @@ export function ReleaseSection({ className, showTitle = true }: ReleaseSectionPr
           <div className="mt-4 space-y-3">
             <div className="flex items-center gap-1.5 text-xs font-semibold text-fg">
               <RocketLaunchIcon size={16} className="text-accent-text" />
-              <span>What's New in v1.6.6</span>
+              <span>What's New in v1.6.7</span>
             </div>
 
             <ul className="space-y-2 text-xs text-fg-2">
@@ -153,7 +153,7 @@ export function ReleaseSection({ className, showTitle = true }: ReleaseSectionPr
           </div>
           <span className="flex items-center gap-1.5 rounded-full bg-accent/10 px-3 py-1 text-xs font-semibold text-accent-text ring-1 ring-accent/25">
             <span className="size-2 rounded-full bg-accent animate-pulse" />
-            v1.6.6 Latest
+            v1.6.7 Latest
           </span>
         </div>
       )}
@@ -167,7 +167,7 @@ export function ReleaseSection({ className, showTitle = true }: ReleaseSectionPr
             <div className="flex items-center gap-2">
               <span className="text-lg font-bold text-fg">CReEPUSIK for Android</span>
               <span className="rounded-md bg-surface-4 px-2 py-0.5 text-[11px] font-mono font-medium text-fg-2">
-                Build 10606
+                Build 10607
               </span>
             </div>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-fg-3">
@@ -176,7 +176,7 @@ export function ReleaseSection({ className, showTitle = true }: ReleaseSectionPr
                 Verified Signature (v2 + v3)
               </span>
               <span>•</span>
-              <span>Size: ~49.8 MB</span>
+              <span>Size: ~53.4 MB</span>
               <span>•</span>
               <span>Target: Android 8.0 - 15+</span>
             </div>
@@ -185,7 +185,7 @@ export function ReleaseSection({ className, showTitle = true }: ReleaseSectionPr
           <div className="flex items-center gap-2">
             <a
               href={DIRECT_APK_URL}
-              download="CReEPUSIK-v1.6.6.apk"
+              download="CReEPUSIK-v1.6.7.apk"
               className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-accent px-5 text-sm font-semibold text-accent-ink shadow-lg shadow-accent/20 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
             >
               <DownloadSimpleIcon size={18} weight="bold" />
@@ -267,7 +267,7 @@ export function ReleaseSection({ className, showTitle = true }: ReleaseSectionPr
         </div>
         <ol className="list-decimal list-inside space-y-1 text-fg-3 leading-relaxed">
           <li>Tap the <strong>Download APK</strong> button above to download the file directly to your phone.</li>
-          <li>Open your notification bar or Downloads folder and tap on <code className="rounded bg-surface-3 px-1 py-0.5 text-fg">CReEPUSIK-v1.6.6.apk</code>.</li>
+          <li>Open your notification bar or Downloads folder and tap on <code className="rounded bg-surface-3 px-1 py-0.5 text-fg">CReEPUSIK-v1.6.7.apk</code>.</li>
           <li>If prompted, tap <em>Settings</em> and allow <em>"Install unknown apps"</em> for your browser.</li>
           <li>Tap <strong>Install</strong>, then launch CReEPUSIK to start listening!</li>
         </ol>
