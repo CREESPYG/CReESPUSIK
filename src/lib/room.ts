@@ -1,3 +1,5 @@
+import { Capacitor } from "@capacitor/core";
+
 /**
  * Room Mode — types & helpers for CREESPY "Listen Together".
  *
@@ -71,6 +73,10 @@ export interface Member {
   at: number;
   joinedAt?: number;
   state?: MemberState;
+  /** Joined from the Android app (APK) rather than a browser — shown as a phone badge in the roster. */
+  apk?: boolean;
+  /** Chosen emoji avatar (index into AVATARS), shared to everyone in the room. */
+  avatar?: number;
   lastSeen?: number;
   inVoice?: boolean;
   selfMuted?: boolean;
@@ -109,6 +115,8 @@ export interface ChatMsg {
   mine?: boolean;
   system?: boolean;
   status?: ChatDeliveryStatus;
+  /** Sender's emoji avatar id at send time, so chat bubbles match the roster. */
+  avatar?: number;
 }
 
 export interface PlaybackState {
@@ -183,6 +191,88 @@ export function savedNickname(): string {
     return raw;
   } catch {
     return "";
+  }
+}
+
+/** Whether this client runs inside the Android app container (APK), so presence meta can carry a device badge. */
+export function isAndroidApp(): boolean {
+  try {
+    return Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Shared avatar set: 16 distinct real character art avatars (boys 0–7, girls 8–15).
+ * The avatar id is saved locally, carried in room presence meta (`avatar`) and chat messages.
+ */
+export interface AvatarMeta {
+  id: number;
+  name: string;
+  category: "boy" | "girl";
+  tag: string;
+}
+
+export const AVATARS: AvatarMeta[] = [
+  { id: 0, name: "Cyber Neo", category: "boy", tag: "Techwear & Visor" },
+  { id: 1, name: "Audio DJ", category: "boy", tag: "Snapback & Cans" },
+  { id: 2, name: "Lofi Chill", category: "boy", tag: "Messy & Knit" },
+  { id: 3, name: "Synthwave", category: "boy", tag: "Retro Shades" },
+  { id: 4, name: "Urban Fade", category: "boy", tag: "Streetwear & Stud" },
+  { id: 5, name: "Scholar", category: "boy", tag: "Classic Frames" },
+  { id: 6, name: "Skater Beanie", category: "boy", tag: "Fringe & Beanie" },
+  { id: 7, name: "Tech Starlight", category: "boy", tag: "Cyber Spikes" },
+  { id: 8, name: "Cyber Pop", category: "girl", tag: "Neon Space Buns" },
+  { id: 9, name: "Acoustic Indie", category: "girl", tag: "Beanie & Waves" },
+  { id: 10, name: "Chic Bob", category: "girl", tag: "Cat-Eye Shades" },
+  { id: 11, name: "RGB Gamer", category: "girl", tag: "Cat Headphones" },
+  { id: 12, name: "Solar Queen", category: "girl", tag: "Afro Puffs & Hoops" },
+  { id: 13, name: "Star Dreamer", category: "girl", tag: "Pastel & Clips" },
+  { id: 14, name: "Lofi Scholar", category: "girl", tag: "Wireframes & Bun" },
+  { id: 15, name: "Electro Punk", category: "girl", tag: "Undercut & Biker" },
+];
+
+const BOYS_LAST_ID = 7;
+
+export function avatarName(id: number): string {
+  return AVATARS[id]?.name ?? "Avatar";
+}
+
+/** Legacy helper kept for backward compatibility */
+export function avatarEmoji(id: number): string {
+  return AVATARS[id]?.name ?? "";
+}
+
+/** A stable warm gradient per avatar id, so circles look consistent across devices. */
+export function avatarGradientStyle(id: number): { background: string } {
+  const hue = Number.isInteger(id) && id >= 0 ? ((id * 47 + 205) % 360 + 360) % 360 : 210;
+  return {
+    background: `linear-gradient(135deg, hsl(${hue}, 64%, 46%) 0%, hsl(${(hue + 42) % 360}, 66%, 38%) 100%)`,
+  };
+}
+
+export function isBoysAvatar(id: number): boolean {
+  return Number.isInteger(id) && id >= 0 && id <= BOYS_LAST_ID;
+}
+
+export const savedAvatar = (): number => {
+  try {
+    const raw = localStorage.getItem("creespy.avatar");
+    const n = raw === null ? -1 : parseInt(raw, 10);
+    return Number.isInteger(n) && n >= 0 && n < AVATARS.length ? n : -1;
+  } catch {
+    return -1;
+  }
+};
+
+export function saveAvatar(n: number) {
+  try {
+    if (Number.isInteger(n) && n >= 0 && n < AVATARS.length) {
+      localStorage.setItem("creespy.avatar", String(Math.floor(n)));
+    }
+  } catch {
+    /* noop */
   }
 }
 

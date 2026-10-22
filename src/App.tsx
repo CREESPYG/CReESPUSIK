@@ -103,16 +103,16 @@ export default function App() {
             }, 300);
           }
         } else {
+          // Same track in flight: only touch the player on a REAL state change. Remaps of position within
+          // 5s tolerance are ignored, so the everyday rooster chatter (joins/leaves, heartbeats) never
+          // interrupts or restarts music that plays normally through the room.
+          const playingNow = s.status === "playing";
           if (pb.isPlaying) {
-            if (s.status !== "playing") {
-              s.play();
-            }
-          } else {
-            if (s.status === "playing" || s.status === "loading") {
-              s.pause();
-            }
+            if (!playingNow && s.status !== "loading") s.play();
+          } else if (playingNow || s.status === "loading") {
+            s.pause();
           }
-          if (typeof pb.position === "number" && Math.abs(s.position - pb.position) > 2.0) {
+          if (typeof pb.position === "number" && Math.abs(s.position - pb.position) > 5.0) {
             s.seek(pb.position);
           }
         }

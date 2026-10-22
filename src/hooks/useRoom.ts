@@ -5,11 +5,15 @@ import {
   DIRECTORY_CHANNEL,
   HOST_ONLY_PERMS,
   SHARED_PERMS,
+  AVATARS,
   genRoomCode,
+  isAndroidApp,
   lobbyChannel,
   roomChannel,
   roomChatChannel,
   roomSyncChannel,
+  saveAvatar,
+  savedAvatar,
   saveNickname,
   savedNickname,
   userId,
@@ -123,6 +127,7 @@ export function useRoom(handlers: RoomHandlers) {
   const [permissions, setPermissions] = useState<Permissions>(HOST_ONLY_PERMS);
   const [connection, setConnection] = useState<ConnState>("offline");
   const [nickname, setNickname] = useState(savedNickname());
+  const [avatar, setAvatar] = useState<number>(savedAvatar());
   const [banned] = useState<Set<string>>(() => new Set());
   const [publicRooms, setPublicRooms] = useState<PublicRoomEntry[]>([]);
   const [activeChannel, setActiveChannel] = useState<RealtimeChannel | null>(null);
@@ -141,6 +146,8 @@ export function useRoom(handlers: RoomHandlers) {
   const dirRef = useRef<RealtimeChannel | null>(null);
   const beatRef = useRef<number>(0);
   const banRef = useRef(banned);
+  const avatarRef = useRef<number>(avatar);
+  avatarRef.current = avatar;
   const joinTimersRef = useRef<number[]>([]);
   const resubTimersRef = useRef<number[]>([]);
   const tabSessionId = useRef(getTabSessionId());
@@ -211,8 +218,10 @@ export function useRoom(handlers: RoomHandlers) {
       }
     });
 
-    publicRoomsCacheRef.current.forEach((entry, code) => {
-      if (!activePresenceCodes.has(code) && now - entry.at > 60000) {
+    // The public list is live-presence ONLY: a room with no tracked host/member presence right now is
+    // not joinable and must not be shown — stale cache entries (e.g. after the host refreshes) drop at once.
+    publicRoomsCacheRef.current.forEach((_entry, code) => {
+      if (!activePresenceCodes.has(code)) {
         publicRoomsCacheRef.current.delete(code);
       }
     });
@@ -299,7 +308,14 @@ export function useRoom(handlers: RoomHandlers) {
         }
       }
     });
+
+    // Periodic prune: phantom rooms vanish even when no presence event fires.
+    const pruneTimer = window.setInterval(() => {
+      if (dirRef.current) syncDirectory(dirRef.current);
+    }, 10000);
+
     return () => {
+      window.clearInterval(pruneTimer);
       supabase.removeChannel(dir);
       dirRef.current = null;
     };
@@ -602,6 +618,8 @@ export function useRoom(handlers: RoomHandlers) {
         at: m.at || now,
         joinedAt: m.at || now,
         state: (m.state as MemberState) || "active",
+        apk: !!m.apk,
+        avatar: typeof m.avatar === "number" ? m.avatar : undefined,
         lastSeen: now,
       };
 
@@ -663,12 +681,55 @@ export function useRoom(handlers: RoomHandlers) {
         at: now,
         joinedAt: now,
         state: "active",
+        avatar: avatarRef.current,
         lastSeen: now,
       });
     }
 
     const combined = Array.from(rosterMap.values());
     combined.sort((a, b) => (a.role === "owner" ? -1 : b.role === "owner" ? 1 : a.role === "host" ? -1 : b.role === "host" ? 1 : a.at - b.at));
+
+    // Names must be unique across the roster: the earliest member keeps the name, later duplicates get
+    // a "-2", "-3"… suffix. The renamed member's own client persists the new name (member_rename).
+    const sortedBySeniority = combined.slice().sort((a, b) => a.at - b.at || a.id.localeCompare(b.id));
+    const takenLc = new Map<string, string>();
+    sortedBySeniority.forEach((m2) => {
+      if (!takenLc.has(m2.nickname.trim().toLowerCase())) takenLc.set(m2.nickname.trim().toLowerCase(), m2.id);
+    });
+    const renames: Array<{ uid: string; from: string; to: string }> = [];
+    combined.forEach((m2, idx) => {
+      const base = m2.nickname.trim();
+      if (!base) return;
+      if (takenLc.get(base.toLowerCase()) === m2.id) return;
+      let n = 2;
+      let candidate = `${base}-${n}`;
+      while (takenLc.has(candidate.toLowerCase())) {
+        n += 1;
+        candidate = `${base}-${n}`;
+      }
+      takenLc.set(candidate.toLowerCase(), m2.id);
+      combined[idx] = { ...m2, nickname: candidate, name: candidate };
+      knownMembersCacheRef.current.set(m2.id, combined[idx]);
+      renames.push({ uid: m2.id, from: base, to: candidate });
+    });
+    renames.forEach(({ uid, from, to }) => {
+      if (uid === me.current) {
+        saveNickname(to);
+        setNickname(to);
+      chanRef.current?.track({
+        id: me.current,
+        nickname: to,
+        role: statusRef.current === "hosting" ? "owner" : "member",
+        state: "active",
+        at: Date.now(),
+        apk: isAndroidApp(),
+        avatar: avatarRef.current,
+      }).catch(() => {});
+      } else {
+        ch.send({ type: "broadcast", event: "member_rename", payload: { userId: uid, oldNickname: from, newNickname: to } }).catch(() => {});
+      }
+    });
+
     setMembers(combined);
   }, [myRole, nickname, notifyMemberEvent, electSuccessor]);
 
@@ -819,7 +880,7 @@ export function useRoom(handlers: RoomHandlers) {
           announceDirectory(null);
         }
         if (iAmNewHost) {
-          ch.track({ id: me.current, nickname: savedNickname() || newHostNick || "Host", role: "owner", at: Date.now() }).catch(() => {});
+          ch.track({ id: me.current, nickname: savedNickname() || newHostNick || "Host", role: "owner", at: Date.now(), apk: isAndroidApp(), avatar: avatarRef.current }).catch(() => {});
           window.clearInterval(beatRef.current);
           beatRef.current = window.setInterval(pushPlayback, HEARTBEAT_MS);
           if (roomRef.current) {
@@ -852,6 +913,12 @@ export function useRoom(handlers: RoomHandlers) {
         if (!cleanNew || cleanNew === "false" || cleanNew === "null" || cleanNew === "undefined") return;
         const oldNick = payload.oldNickname || knownMembersCacheRef.current.get(uid)?.nickname || "A member";
 
+        // The renamed member persists the new name, so future joins stay conflict-free.
+        if (uid === me.current && statusRef.current !== "idle") {
+          saveNickname(cleanNew);
+          setNickname(cleanNew);
+        }
+
         const cached = knownMembersCacheRef.current.get(uid);
         if (cached) {
           cached.nickname = cleanNew;
@@ -874,6 +941,23 @@ export function useRoom(handlers: RoomHandlers) {
           const sys = systemMsg(text);
           setChat((prev) => [...prev, sys].slice(-120));
         }
+      });
+
+      ch.on("broadcast", { event: "member_avatar" }, ({ payload }) => {
+        if (!payload?.userId || typeof payload?.avatar !== "number") return;
+        const uid = payload.userId;
+        const cleanAvatar = Math.min(AVATARS.length - 1, Math.max(0, Math.floor(payload.avatar)));
+
+        // The member whose avatar changed persists it, so it stays across reloads.
+        if (uid === me.current && statusRef.current !== "idle") {
+          saveAvatar(cleanAvatar);
+          setAvatar(cleanAvatar);
+        }
+
+        const cached = knownMembersCacheRef.current.get(uid);
+        if (cached) cached.avatar = cleanAvatar;
+
+        setMembers((prev) => prev.map((m) => (m.id === uid ? { ...m, avatar: cleanAvatar } : m)));
       });
 
       ch.on("broadcast", { event: "member_joined" }, ({ payload }) => {
@@ -1150,6 +1234,8 @@ export function useRoom(handlers: RoomHandlers) {
             role,
             state: "active",
             at: Date.now(),
+            apk: isAndroidApp(),
+            avatar: avatarRef.current,
           }).catch(() => {});
           ch.send({
             type: "broadcast",
@@ -1262,11 +1348,17 @@ export function useRoom(handlers: RoomHandlers) {
         return false;
       }
       const effectiveNick = (nick || nickname || savedNickname() || "").trim();
-      if (!effectiveNick && !isRecovery) {
-        hRef.current.onToast?.("Please enter your name first!");
+      if (!effectiveNick) {
+        hRef.current.onToast?.("Please enter your name first to join rooms");
         return false;
       }
-      const finalNick = effectiveNick || "Guest";
+      // Default/generic names are not allowed either.
+      const genericNick = ["guest", "listener", "user", "anonymous", "host", "a member"];
+      if (genericNick.includes(effectiveNick.toLowerCase())) {
+        hRef.current.onToast?.("Please choose a unique display name before joining");
+        return false;
+      }
+      const finalNick = effectiveNick;
       saveNickname(finalNick);
       setNickname(finalNick);
 
@@ -1438,6 +1530,7 @@ export function useRoom(handlers: RoomHandlers) {
         message: t.slice(0, 400),
         ts: Date.now(),
         status: "sending",
+        avatar: avatarRef.current >= 0 ? avatarRef.current : undefined,
       };
 
       // Optimistic addition with deduplication
@@ -1741,10 +1834,25 @@ export function useRoom(handlers: RoomHandlers) {
   const updateNickname = useCallback((n: string) => {
     const clean = String(n || "").trim().slice(0, 24);
     if (!clean || clean === "false" || clean === "null" || clean === "undefined") {
-      return;
+      hRef.current.onToast?.("Please enter a name to use in rooms");
+      return false;
+    }
+    // Generic/default names are never allowed as a real identity.
+    const generic = ["guest", "listener", "user", "anonymous", "host", "a member"];
+    if (generic.includes(clean.toLowerCase())) {
+      hRef.current.onToast?.("Please choose a unique name — default names are not allowed");
+      return false;
     }
     const oldNick = nickname;
-    if (clean === oldNick) return;
+    if (clean === oldNick) return true;
+    // The same nickname can never be used by two members in the room at once.
+    const takenBy = members.find(
+      (m) => m.id !== me.current && (m.nickname || "").trim().toLowerCase() === clean.toLowerCase()
+    );
+    if (takenBy) {
+      hRef.current.onToast?.(`"${clean}" is already taken by a member of this room`);
+      return false;
+    }
 
     saveNickname(clean);
     setNickname(clean);
@@ -1778,8 +1886,43 @@ export function useRoom(handlers: RoomHandlers) {
         role: statusRef.current === "hosting" ? "owner" : myRole,
         state: "active",
         at: Date.now(),
+        apk: isAndroidApp(),
+        avatar: avatarRef.current,
       }).catch(() => {});
     }
+  }, [myRole, members, nickname]);
+
+  const updateAvatar = useCallback((n: number) => {
+    if (!Number.isInteger(n) || n < 0 || n >= AVATARS.length) {
+      return false;
+    }
+    const cleanAvatar = Math.floor(n);
+    saveAvatar(cleanAvatar);
+    setAvatar(cleanAvatar);
+
+    setMembers((prev) => prev.map((m) => (m.id === me.current ? { ...m, avatar: cleanAvatar } : m)));
+    const cached = knownMembersCacheRef.current.get(me.current);
+    if (cached) cached.avatar = cleanAvatar;
+
+    const ch = chanRef.current;
+    if (ch && (statusRef.current === "hosting" || statusRef.current === "member")) {
+      ch.send({
+        type: "broadcast",
+        event: "member_avatar",
+        payload: { userId: me.current, avatar: cleanAvatar },
+      }).catch(() => {});
+
+      ch.track({
+        id: me.current,
+        nickname: savedNickname() || nickname || "Guest",
+        role: statusRef.current === "hosting" ? "owner" : myRole,
+        state: "active",
+        at: Date.now(),
+        apk: isAndroidApp(),
+        avatar: cleanAvatar,
+      }).catch(() => {});
+    }
+    return true;
   }, [myRole, nickname]);
 
   // Host keeps directory count in sync
@@ -1928,6 +2071,8 @@ export function useRoom(handlers: RoomHandlers) {
         }).catch(() => {});
       }
       chanRef.current?.untrack().catch(() => {});
+      // Leaving by closing/refreshing the page also ends the room session: no silent auto-rejoin.
+      clearRoomSession();
     };
 
     window.addEventListener("beforeunload", handleBeforeUnload);
@@ -1945,10 +2090,15 @@ export function useRoom(handlers: RoomHandlers) {
     const session = loadRoomSession();
 
     if (invite) {
-      joinRoom(invite, savedNickname() || "Guest", false);
+      joinRoom(invite, savedNickname(), false);
     } else if (session && session.roomCode && Date.now() - session.joinedAt < 6 * 3600 * 1000) {
       if (session.role === "host") {
-        const nick = savedNickname() || "Host";
+        const nick = savedNickname();
+        if (!nick) {
+          // No identity set: don't resurrect a host session as the generic "Host".
+          clearRoomSession();
+          return;
+        }
         const info: RoomInfo = {
           code: session.roomCode,
           name: session.roomName || `${nick}'s Room`,
@@ -1973,7 +2123,7 @@ export function useRoom(handlers: RoomHandlers) {
           at: Date.now(),
         });
       } else {
-        joinRoom(session.roomCode, savedNickname() || "Guest", true);
+        joinRoom(session.roomCode, savedNickname(), true);
       }
     } else {
       clearRoomSession();
@@ -2049,6 +2199,7 @@ export function useRoom(handlers: RoomHandlers) {
     permissions,
     connection,
     nickname,
+    avatar,
     canDrive,
     canPlayPause,
     canSeek,
@@ -2097,6 +2248,7 @@ export function useRoom(handlers: RoomHandlers) {
     leave,
     dismiss,
     updateNickname,
+    updateAvatar,
     pushPlayback,
     addQueueTrack,
     broadcastQueue,

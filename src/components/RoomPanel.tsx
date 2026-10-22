@@ -4,6 +4,7 @@ import {
   CheckIcon,
   CopyIcon,
   CrownSimpleIcon,
+  DeviceMobileIcon,
   GlobeIcon,
   HeadphonesIcon,
   LockSimpleIcon,
@@ -19,9 +20,12 @@ import {
 import React, { useEffect, useRef, useState } from "react";
 import type { RoomApi } from "../hooks/useRoom";
 import { cn } from "../lib/format";
+import { AVATARS, avatarName, savedAvatar, savedNickname } from "../lib/room";
 import { selectCurrent, usePlayer } from "../player/player";
 import { Artwork } from "./Artwork";
+import { AvatarArt } from "./AvatarArt";
 import { Equalizer } from "./Brand";
+import { Modal } from "./Modal";
 
 function getAvatarStyle(name: string, isMe = false): React.CSSProperties {
   if (isMe) {
@@ -61,10 +65,182 @@ export function RoomPanel({
   const currentTrack = usePlayer(selectCurrent);
   const isPlaying = usePlayer((s) => s.status === "playing");
 
-  const [nick, setNick] = useState(() => room.nickname || "Listener");
-  const [editingNick, setEditingNick] = useState(false);
-  const [editingNickVal, setEditingNickVal] = useState(nick);
-  const nickInputRef = useRef<HTMLInputElement>(null);
+  const [nick, setNick] = useState(() => savedNickname());
+
+  // Emoji avatar mirror (roster + chat share it). useRoom owns the saved value; mirror for instant UI.
+  const [avatar, setAvatar] = useState<number>(() => {
+    const initial = typeof room.avatar === "number" && room.avatar >= 0 ? room.avatar : savedAvatar();
+    return initial;
+  });
+  useEffect(() => {
+    if (typeof room.avatar === "number" && room.avatar >= 0) setAvatar(room.avatar);
+  }, [room.avatar]);
+
+  // First-time visit: a centered popup asks for a name + avatar before anything else in Rooms.
+  const needsSetup = !savedNickname();
+
+  // Profile editor (name + emoji avatar) — required once on first visit, editable any time after.
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [profileName, setProfileName] = useState(() => nick);
+  const [profileAvatar, setProfileAvatar] = useState<number>(() => avatar);
+  const profileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (needsSetup) {
+      const t = window.setTimeout(() => profileInputRef.current?.focus(), 350);
+      return () => window.clearTimeout(t);
+    }
+  }, [needsSetup]);
+
+  const openProfileEditor = () => {
+    setProfileName(nick);
+    setProfileAvatar(avatar);
+    setProfileOpen(true);
+  };
+
+  const saveProfile = (): boolean => {
+    if (!room.updateNickname(profileName.trim())) {
+      profileInputRef.current?.focus();
+      return false;
+    }
+    if (!room.updateAvatar(profileAvatar)) {
+      onToast("Please pick an avatar");
+      profileInputRef.current?.focus();
+      return false;
+    }
+    setNick(profileName.trim());
+    return true;
+  };
+
+  const commitProfile = () => {
+    if (saveProfile()) setProfileOpen(false);
+  };
+
+  const avatarGrid = (
+    <div className="flex flex-col gap-3.5 mb-3.5">
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-fg-3">Boys Character Arts</p>
+          <span className="text-[10px] text-fg-3 font-mono">8 Avatars</span>
+        </div>
+        <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
+          {AVATARS.slice(0, 8).map((av, i) => (
+            <button
+              key={`boy-${i}`}
+              type="button"
+              onClick={() => setProfileAvatar(i)}
+              title={`${av.name} • ${av.tag}`}
+              className={cn(
+                "group relative aspect-square rounded-2xl p-1 border transition-all overflow-hidden flex flex-col items-center justify-center",
+                profileAvatar === i
+                  ? "border-accent ring-2 ring-accent/60 bg-[var(--accent-soft)] shadow-md scale-105"
+                  : "border-line bg-surface-2 hover:bg-surface-3 hover:scale-102"
+              )}
+            >
+              <AvatarArt id={i} className="size-full rounded-xl" />
+              {profileAvatar === i && (
+                <span className="absolute bottom-1 right-1 size-3.5 rounded-full bg-accent text-accent-ink grid place-items-center shadow-xs">
+                  <CheckIcon size={9} weight="bold" />
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-fg-3">Girls Character Arts</p>
+          <span className="text-[10px] text-fg-3 font-mono">8 Avatars</span>
+        </div>
+        <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
+          {AVATARS.slice(8).map((av, i) => (
+            <button
+              key={`girl-${i}`}
+              type="button"
+              onClick={() => setProfileAvatar(i + 8)}
+              title={`${av.name} • ${av.tag}`}
+              className={cn(
+                "group relative aspect-square rounded-2xl p-1 border transition-all overflow-hidden flex flex-col items-center justify-center",
+                profileAvatar === i + 8
+                  ? "border-accent ring-2 ring-accent/60 bg-[var(--accent-soft)] shadow-md scale-105"
+                  : "border-line bg-surface-2 hover:bg-surface-3 hover:scale-102"
+              )}
+            >
+              <AvatarArt id={i + 8} className="size-full rounded-xl" />
+              {profileAvatar === i + 8 && (
+                <span className="absolute bottom-1 right-1 size-3.5 rounded-full bg-accent text-accent-ink grid place-items-center shadow-xs">
+                  <CheckIcon size={9} weight="bold" />
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+      {profileAvatar >= 0 && AVATARS[profileAvatar] && (
+        <div className="p-2.5 rounded-xl bg-surface-2 border border-line flex items-center justify-between text-xs animate-in fade-in duration-200">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-fg">{AVATARS[profileAvatar].name}</span>
+            <span className="text-fg-3">• {AVATARS[profileAvatar].tag}</span>
+          </div>
+          <span className="text-[10px] font-mono text-accent uppercase tracking-wider font-semibold">Selected</span>
+        </div>
+      )}
+    </div>
+  );
+
+  const profileBody = (
+    <>
+      <p className="text-xs text-fg-3 mb-3">
+        Enter your display name and choose your real avatar art — everyone in the room will see this character portrait.
+        Generic names (Guest, Listener) and duplicate room names are not allowed.
+      </p>
+      <div className="flex items-center gap-3 mb-3">
+        <div
+          className={cn(
+            "size-13 rounded-2xl overflow-hidden shadow-md ring-2 shrink-0 bg-surface-2",
+            profileAvatar >= 0 ? "ring-accent/60" : "ring-line"
+          )}
+        >
+          <AvatarArt id={profileAvatar} className="size-full" />
+        </div>
+        <input
+          ref={profileInputRef}
+          type="text"
+          value={profileName}
+          onChange={(e) => setProfileName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              commitProfile();
+            }
+          }}
+          maxLength={24}
+          placeholder="Enter your name to continue..."
+          className="min-w-0 flex-1 h-11 px-3.5 rounded-xl bg-surface-2 border border-line text-sm text-fg placeholder:text-fg-3 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all"
+          autoFocus
+        />
+      </div>
+      {avatarGrid}
+      <button
+        type="button"
+        onClick={() => {
+          if (saveProfile()) setProfileOpen(false);
+        }}
+        disabled={profileName.trim().length === 0 || profileAvatar < 0}
+        className={cn(
+          "w-full h-11 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2",
+          profileName.trim() && profileAvatar >= 0
+            ? "bg-accent text-accent-ink hover:brightness-105 active:scale-[0.98] shadow-md"
+            : "bg-surface-2 text-fg-3 cursor-not-allowed border border-line"
+        )}
+      >
+        <CheckIcon size={16} weight="bold" /> Save Profile
+      </button>
+    </>
+  );
+
+  // Profile (name + emoji avatar). Saved once on first visit; re-editable any time from Your Identity.
+  // (States + saveProfile are declared above.)
 
   // Create Room Form State
   const [name, setName] = useState("");
@@ -99,8 +275,8 @@ export function RoomPanel({
 
   const ensureNick = (): boolean => {
     if (!nick.trim()) {
-      onToast("Please choose a nickname first");
-      setEditingNick(true);
+      onToast("Please set your name in Rooms first");
+      openProfileEditor();
       return false;
     }
     return true;
@@ -126,70 +302,40 @@ export function RoomPanel({
   /* 1. LOBBY VIEW (Positioned: Active Rooms -> Create & Join)    */
   /* ============================================================ */
   if (!inRoom) {
-    return (
-      <div className="flex flex-col gap-3.5 max-w-4xl mx-auto w-full px-2 sm:px-4 py-2 sm:py-3 animate-in fade-in duration-300">
-        {/* User Identity Banner */}
+      return (
+        <div className="flex flex-col gap-3.5 max-w-4xl mx-auto w-full px-2 sm:px-4 py-2 sm:py-3 animate-in fade-in duration-300">
+                {/* User Identity Banner — avatar and name update instantly, and can be edited any time */}
         <div className="flex items-center justify-between gap-3 p-3 sm:p-3.5 rounded-2xl bg-surface-1 border border-line shadow-sm">
-          <div className="flex items-center gap-3.5">
-            <div
-              style={getAvatarStyle(nick || "Guest", true)}
-              className="size-12 rounded-full grid place-items-center font-bold text-sm shadow-md ring-2 ring-accent/30"
+          <div className="flex items-center gap-3.5 min-w-0">
+            <button
+              type="button"
+              title="Change your name & avatar"
+              onClick={() => {
+                if (!inRoom && needsSetup) return;
+                openProfileEditor();
+              }}
+              className="size-12 rounded-2xl overflow-hidden shadow-md ring-2 ring-accent/40 shrink-0 transition-transform active:scale-95 bg-surface-2"
             >
-              {(nick || "G")[0].toUpperCase()}
-            </div>
-            <div>
+              <AvatarArt id={avatar} className="size-full" />
+            </button>
+            <div className="min-w-0">
               <p className="text-xs uppercase tracking-wider font-semibold text-fg-3">Your Identity</p>
-              {editingNick ? (
-                <div className="flex items-center gap-2 mt-1">
-                  <input
-                    ref={nickInputRef}
-                    type="text"
-                    value={editingNickVal}
-                    onChange={(e) => setEditingNickVal(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        if (editingNickVal.trim()) {
-                          room.updateNickname(editingNickVal.trim());
-                          setNick(editingNickVal.trim());
-                        }
-                        setEditingNick(false);
-                      }
-                    }}
-                    className="h-8 px-2.5 rounded-lg bg-surface-2 border border-line-strong text-sm text-fg focus:outline-none focus:ring-1 focus:ring-accent"
-                    placeholder="Enter name..."
-                    autoFocus
-                  />
-                  <button
-                    onClick={() => {
-                      if (editingNickVal.trim()) {
-                        room.updateNickname(editingNickVal.trim());
-                        setNick(editingNickVal.trim());
-                      }
-                      setEditingNick(false);
-                    }}
-                    className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-accent text-accent-ink shadow-sm"
-                  >
-                    Save
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <span className="text-base font-semibold text-fg">{nick || "Anonymous Listener"}</span>
-                  <button
-                    onClick={() => {
-                      setEditingNickVal(nick || "");
-                      setEditingNick(true);
-                    }}
-                    className="text-xs text-[var(--accent-text)] hover:underline ml-1 font-medium"
-                  >
-                    Change
-                  </button>
-                </div>
-              )}
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="text-base font-semibold text-fg truncate">{nick || "Anonymous Listener"}</span>
+                <span className="shrink-0 text-[10px] font-mono text-fg-3 px-1.5 py-0.5 rounded bg-surface-2 border border-line">
+                  {avatar >= 0 ? avatarName(avatar) : "no avatar"}
+                </span>
+              </div>
             </div>
           </div>
 
-          
+          <button
+            type="button"
+            onClick={openProfileEditor}
+            className="shrink-0 px-3 h-9 rounded-xl bg-surface-3 hover:bg-surface-2 border border-line text-xs font-semibold text-fg-2 hover:text-accent transition-colors flex items-center gap-1.5"
+          >
+            <SparkleIcon size={14} /> Edit
+          </button>
         </div>
 
         {/* Error / Status notices */}
@@ -443,6 +589,16 @@ export function RoomPanel({
             </div>
           </div>
         </div>
+
+        {/* First-visit blocking popup (centered): name + avatar must be saved to join rooms */}
+        <Modal open={!inRoom && needsSetup} onClose={() => {}} title="Welcome — Set Your Profile" dismissible={false} center>
+          {profileBody}
+        </Modal>
+
+        {/* Identity editing any time: same popup, closable */}
+        <Modal open={profileOpen} onClose={() => setProfileOpen(false)} title="Your Identity" center>
+          {profileBody}
+        </Modal>
       </div>
     );
   }
@@ -594,16 +750,31 @@ export function RoomPanel({
                     className="flex items-center justify-between gap-2 p-2 rounded-xl bg-surface-2/60 border border-line hover:bg-surface-2 transition-colors"
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <div
-                        style={getAvatarStyle(m.nickname, isMe)}
-                        className="size-7 rounded-full grid place-items-center font-bold text-[11px] shadow-xs shrink-0"
-                      >
-                        {m.nickname[0].toUpperCase()}
+                      <div className="size-8 rounded-full overflow-hidden shadow-xs shrink-0 ring-1 ring-line/60 bg-surface-3">
+                        {typeof m.avatar === "number" && m.avatar >= 0 ? (
+                          <AvatarArt id={m.avatar} className="size-full" />
+                        ) : (
+                          <div
+                            style={getAvatarStyle(m.nickname, isMe)}
+                            className="size-full grid place-items-center font-bold text-xs"
+                          >
+                            {m.nickname[0].toUpperCase()}
+                          </div>
+                        )}
                       </div>
-                      <div className="min-w-0">
-                        <span className="text-xs font-semibold text-fg truncate block">
+                      <div className="min-w-0 flex items-center gap-1.5">
+                        <span className="text-xs font-semibold text-fg truncate">
                           {m.nickname} {isMe && "(You)"}
                         </span>
+                        {m.apk && (
+                          <span
+                            className="shrink-0"
+                            title="Joined from the CReEPUSIK Android app"
+                            aria-label="Joined from the CReEPUSIK Android app"
+                          >
+                            <DeviceMobileIcon size={13} weight="fill" className="text-[var(--accent-text)]" />
+                          </span>
+                        )}
                         <span className="text-[10px] text-fg-3 font-mono">
                           {isUserHost ? "Session Host" : "Listener"}
                         </span>
@@ -756,18 +927,33 @@ export function RoomPanel({
                     className={cn("flex gap-2.5 max-w-[85%] sm:max-w-[75%]", isMine ? "ml-auto flex-row-reverse" : "")}
                   >
                     {!isMine && (
-                      <div
-                        style={getAvatarStyle(m.nickname, false)}
-                        className="size-7 rounded-full shrink-0 grid place-items-center font-bold text-[11px] shadow-xs"
-                      >
-                        {m.nickname[0].toUpperCase()}
+                      <div className="size-8 rounded-full shrink-0 overflow-hidden shadow-xs ring-1 ring-line/60 bg-surface-3">
+                        {typeof m.avatar === "number" && m.avatar >= 0 ? (
+                          <AvatarArt id={m.avatar} className="size-full" />
+                        ) : (
+                          <div
+                            style={getAvatarStyle(m.nickname, false)}
+                            className="size-full grid place-items-center font-bold text-xs"
+                          >
+                            {m.nickname[0].toUpperCase()}
+                          </div>
+                        )}
                       </div>
                     )}
                     <div className="flex flex-col gap-1">
                       {!isMine && (
-                        <div className="flex items-center gap-2 ml-1">
+                        <div className="flex items-center gap-1.5 ml-1">
                           <span className="text-[11px] font-semibold text-fg-2">{m.nickname}</span>
-                          <span className="text-[10px] text-fg-3 font-mono">
+                          {room.members.find((mb) => mb.id === m.userId)?.apk && (
+                            <span
+                              title="Joined from the CReEPUSIK Android app"
+                              aria-label="Joined from the CReEPUSIK Android app"
+                              className="shrink-0"
+                            >
+                              <DeviceMobileIcon size={12} weight="fill" className="text-[var(--accent-text)]" />
+                            </span>
+                          )}
+                          <span className="text-[10px] text-fg-3 font-mono ml-0.5">
                             {new Date(m.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                           </span>
                         </div>
