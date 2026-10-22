@@ -79,8 +79,23 @@ export default defineConfig(() => {
           ],
         },
         workbox: {
+          skipWaiting: true,
+          clientsClaim: true,
+          cleanupOutdatedCaches: true,
+          navigateFallback: null,
           navigateFallbackDenylist: [/^\/api\//, /^\/downloads\//],
           runtimeCaching: [
+            {
+              // Navigation requests: NetworkFirst ensures user always gets the latest HTML on visit/refresh,
+              // falling back to cache if offline.
+              urlPattern: ({ request }) => request.mode === "navigate",
+              handler: "NetworkFirst",
+              options: {
+                cacheName: "html-cache",
+                networkTimeoutSeconds: 3,
+                cacheableResponse: { statuses: [0, 200] },
+              },
+            },
             {
               // Artwork only. Streams and API responses are never cached by the service worker.
               urlPattern: ({ url }) => /(^|\.)ytimg\.com$|googleusercontent\.com$|ggpht\.com$/.test(url.hostname),
