@@ -46,6 +46,12 @@ Android APK builds are published directly in the **[GitHub Releases section](htt
 2. Tap **Install** (if prompted, allow *Install unknown apps* in your browser/file manager).
 3. Open **CReEPUSIK** and enjoy unlimited music streaming!
 
+### 🆕 What's New in v1.6.7
+- **Zero-Lag Realtime Room Control:** Configured Supabase high-throughput pipeline (100 events/sec, 2.5s keepalive) with dual-channel broadcasting for instant host & guest permission updates.
+- **Live Room Activity Indicators:** Real-time pulsating status indicators on the Navigation Rail, Mobile Tab Bar, and Home dashboard broadcast banner when rooms are active.
+- **Continuous Track Radio:** Fixed track queue continuity and seamless playback transitions when initiating "Start Radio from Track".
+- **Android Native Notification Pipeline:** Lock screen media controls with public channel notification visibility and background audio service.
+
 ---
 
 ## ✨ Key Features
