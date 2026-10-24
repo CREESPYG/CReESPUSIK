@@ -55,7 +55,7 @@ export default function Rooms() {
   return (
     <div className="h-full max-h-full flex flex-col min-h-0 overflow-y-auto scroll-area">
       <PageHeader title="Live Rooms & Chat" />
-      <div className="flex-1 min-h-0 w-full max-w-5xl mx-auto px-2 sm:px-4 pb-28 md:pb-8">
+      <div className="flex-1 min-h-0 w-full max-w-6xl xl:max-w-7xl 2xl:max-w-[96rem] mx-auto px-2 sm:px-4 pb-28 md:pb-8">
         <RoomPanel
           open={true}
           onClose={() => {}}

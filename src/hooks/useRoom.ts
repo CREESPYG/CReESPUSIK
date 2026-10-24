@@ -48,14 +48,17 @@ function notifyChatMessage(msg: ChatMsg, roomName: string) {
   });
 }
 
-/** Create a system chat message */
-function systemMsg(text: string): ChatMsg {
+/** Create a system chat message. `key` (optional) makes the id deterministic for the
+ * same logical event across all members' clients — merge-by-id then collapses the
+ * N per-client copies of "X joined the room" into exactly ONE line. `ts` (optional)
+ * stamps the line with the ACTOR's authoritative event time instead of observe-time. */
+function systemMsg(text: string, key?: string, ts?: number): ChatMsg {
   return {
-    id: `sys-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 5)}`,
+    id: key ? `sys-${key}` : `sys-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 5)}`,
     userId: "__system__",
     nickname: "System",
     message: text,
-    ts: Date.now(),
+    ts: ts || Date.now(),
     system: true,
   };
 }
@@ -137,6 +140,9 @@ export function useRoom(handlers: RoomHandlers) {
   const explicitlyLeftRef = useRef<Map<string, number>>(new Map());
   const isRecoveringRef = useRef(false);
   const hasCompletedInitialSyncRef = useRef(false);
+  // Realtime presence-truth: uid → when the server evicted their presence slot.
+  // Drives the fast 8s expiry for ungraceful exits instead of the 75s grace.
+  const presenceExitedRef = useRef<Map<string, number>>(new Map());
   // Channel (re)bind moment: presence metas created BEFORE this are people who were already in the
   // room — their joins must never re-appear as notifications.
   const bindAtRef = useRef(0);
@@ -369,6 +375,7 @@ export function useRoom(handlers: RoomHandlers) {
     knownMembersCacheRef.current.clear();
     knownMemberIdsRef.current.clear();
     explicitlyLeftRef.current.clear();
+    presenceExitedRef.current.clear();
     hasCompletedInitialSyncRef.current = false;
   }, []);
 
@@ -448,12 +455,23 @@ export function useRoom(handlers: RoomHandlers) {
   }, []);
 
   /* ---------- real-time member event notifier (with deduplication) ---------- */
-  const notifyMemberEvent = useCallback((event: "join" | "leave", uid: string, nick: string) => {
+  const notifyMemberEvent = useCallback((event: "join" | "leave", uid: string, nick: string, eventId?: string) => {
     if (!uid || uid === me.current) return;
+    // FINAL net — "already in users" match: if the uid is ALREADY on the visible
+    // roster, it is an existing member (presence re-track / late sync / flap).
+    // Never announce them as "joined" again, no matter which path re-sees them.
+    if (event === "join" && membersRef.current.some((m) => m.id === uid)) {
+      return;
+    }
     const key = `${event}:${uid}`;
     const last = recentEventsRef.current.get(key) || 0;
     const now = Date.now();
-    if (now - last < 5000) return;
+    // Joins get a LONG suppression window (90s): reconnect flaps re-track
+    // presence with a fresh timestamp ~a minute apart — every client must stay
+    // silent for that whole cycle so the same person is never announced twice.
+    // Leaves get a shorter 30s window (re-canonical one line, quick rejoins stay quiet).
+    const windowMs = event === "join" ? 90000 : 30000;
+    if (now - last < windowMs) return;
     recentEventsRef.current.set(key, now);
 
     const raw = String(nick || "").trim();
@@ -470,7 +488,7 @@ export function useRoom(handlers: RoomHandlers) {
       popOut();
     }
     hRef.current.onToast?.(text);
-    const sys = systemMsg(text);
+    const sys = systemMsg(text, eventId);
     setChat((prev) => (prev.some((c) => c.id === sys.id) ? prev : [...prev, sys].slice(-120)));
   }, []);
 
@@ -520,13 +538,21 @@ export function useRoom(handlers: RoomHandlers) {
             avatar: avatarRef.current,
           })
           .catch(() => {});
+        // The winner's side publishes the transfer for everyone (they also write
+        // their own personal line under the same canonical id below).
+        const transferAt = Date.now();
         chanRef.current
           ?.send({
             type: "broadcast",
             event: "host_transfer",
-            payload: { newHostId: me.current, newHostName: nick, roomName: newRoomName },
+            payload: { newHostId: me.current, newHostName: nick, roomName: newRoomName, at: transferAt },
           })
           .catch(() => {});
+        {
+          const sysSelf = systemMsg(`👑 ${nick} is now the Host`, `ev-transfer-${me.current}-${transferAt}`, transferAt);
+          setChat((prev) => (prev.some((c) => c.id === sysSelf.id) ? prev : [...prev, sysSelf].slice(-120)));
+          hRef.current.onToast?.(`👑 ${nick} is now the Host`);
+        }
       } else {
         setRoom((r) => (r ? { ...r, hostId: winner.id, hostName: nick, name: newRoomName } : r));
         if (roomRef.current) {
@@ -616,6 +642,8 @@ export function useRoom(handlers: RoomHandlers) {
 
       rosterMap.set(uid, member);
       knownMembersCacheRef.current.set(uid, member);
+      // Back live again — no fast-expiry stamp applies.
+      presenceExitedRef.current.delete(uid);
 
       // Notify join only once per user session — only for real-time joins, and only if their presence
       // was actually created after we bound the channel (backfilled presences are people who were
@@ -623,7 +651,9 @@ export function useRoom(handlers: RoomHandlers) {
       if (!knownMemberIdsRef.current.has(uid) && uid !== me.current) {
         knownMemberIdsRef.current.add(uid);
         if (notifyJoins && (!isFirstSync || (m.at || 0) > bindAt)) {
-          notifyMemberEvent("join", uid, memberNick);
+          // Bucket-60s event id: identical across re-tracks within the same
+          // minute (re-subscribe flaps), so merged history keeps ONE line.
+          notifyMemberEvent("join", uid, memberNick, `ev-join-${uid}-${Math.floor((m.at || now) / 60000)}`);
         }
       }
     });
@@ -641,16 +671,22 @@ export function useRoom(handlers: RoomHandlers) {
       }
 
       if (!rosterMap.has(uid)) {
-        // Keep in roster for at least 75 seconds if tab switched or backgrounded
-        if (now - (cachedMember.lastSeen ?? now) < 75000) {
+        // Presence-truth fast expiry: when the realtime server actually evicted
+        // the member's presence slot (app kill / network drop / page close) we
+        // keep them for just 8 seconds as drop protection — not the full 75s
+        // tab-switch grace, so "0 listeners" is reached almost immediately.
+        const exitedAt = presenceExitedRef.current.get(uid);
+        const graceMs = exitedAt ? 8000 : 75000;
+        if (now - (exitedAt ?? cachedMember.lastSeen ?? now) < graceMs) {
           rosterMap.set(uid, { ...cachedMember, state: "active" });
         } else {
           // Expiry after prolonged disappearance without explicit leave
+          presenceExitedRef.current.delete(uid);
           knownMembersCacheRef.current.delete(uid);
           knownMemberIdsRef.current.delete(uid);
           const rawNick = String(cachedMember.nickname || "").trim();
           const cleanNick = rawNick && rawNick !== "false" && rawNick !== "undefined" ? rawNick : "A member";
-          notifyMemberEvent("leave", uid, cleanNick);
+          notifyMemberEvent("leave", uid, cleanNick, `lv-${uid}-${Math.floor(now / 20000)}`);
           // Host vanished without a graceful leave → auto handover (Phase 21)
           if ((cachedMember.role === "owner" || roomRef.current?.hostId === uid) && statusRef.current === "member") {
             electSuccessor(rosterMap);
@@ -803,6 +839,23 @@ export function useRoom(handlers: RoomHandlers) {
       // Presence events - sync roster safely without false leave spam. Only the real-time "join" event
       // may announce joins (headless "sync" reconciliations must stay silent).
       ch.on("presence", { event: "sync" }, () => syncMembers(ch));
+      ch.on("presence", { event: "leave" }, () => {
+        // Server just evicted presence slots — stamp the real exit cereals time
+        // per vanished uid so syncMembers can fast-expire them (8s, not 75s).
+        const nowMs = Date.now();
+        const state = ch.presenceState() as Record<string, any[]>;
+        const alive = new Set<string>();
+        Object.entries(state).forEach(([key, metas]) => {
+          const m = (metas?.[0] ?? {}) as any;
+          alive.add(m.id || key);
+        });
+        knownMembersCacheRef.current.forEach((_cached, uid) => {
+          if (uid !== me.current && !alive.has(uid) && !presenceExitedRef.current.has(uid)) {
+            presenceExitedRef.current.set(uid, nowMs);
+          }
+        });
+        syncMembers(ch);
+      });
       ch.on("presence", { event: "join" }, () => syncMembers(ch, true));
       ch.on("presence", { event: "leave" }, () => syncMembers(ch));
 
@@ -821,7 +874,10 @@ export function useRoom(handlers: RoomHandlers) {
             permissions: isCurrentHost ? permRef.current : null,
             room: isCurrentHost ? roomRef.current : null,
             queue: isCurrentHost ? q : null,
-            chat: (chatRef.current || []).slice(-100),
+            // Only the current host serves chat history: every member answering
+            // with their own random-id copy is what multiplied join/leave lines
+            // by the member count. Host is the single authoritative history.
+            chat: isCurrentHost ? (chatRef.current || []).slice(-100) : [],
           },
         }).catch(() => {});
       });
@@ -871,7 +927,7 @@ export function useRoom(handlers: RoomHandlers) {
           announceDirectory(null);
         }
         if (iAmNewHost) {
-          ch.track({ id: me.current, nickname: savedNickname() || newHostNick || "Host", role: "owner", at: Date.now(), apk: isAndroidApp(), avatar: avatarRef.current }).catch(() => {});
+          ch.track({ id: me.current, nickname: savedNickname() || newHostNick || "Host", role: "owner", at: payload.at || Date.now(), apk: isAndroidApp(), avatar: avatarRef.current }).catch(() => {});
           window.clearInterval(beatRef.current);
           beatRef.current = window.setInterval(pushPlayback, HEARTBEAT_MS);
           if (roomRef.current) {
@@ -887,14 +943,18 @@ export function useRoom(handlers: RoomHandlers) {
               });
             }
           }
-          const sysPromote = systemMsg("👑 You have been promoted to Room Host!");
-          setChat((prev) => [...prev, sysPromote].slice(-120));
-          hRef.current.onToast?.("👑 You have been promoted to Room Host!");
-        } else {
-          const sysTransfer = systemMsg(`👑 ${newHostNick} is now the Host`);
-          setChat((prev) => [...prev, sysTransfer].slice(-120));
-          hRef.current.onToast?.(`👑 ${newHostNick} is now the Host`);
         }
+        // Single canonical line for EVERYONE (the new host included): one
+        // actor-stamped id, one text — no personal-top variants, no doubles.
+        const sysTransferText = `👑 ${newHostNick} is now the Host`;
+        const transferTs = Number(payload.at) || Date.now();
+        const sysTransfer = systemMsg(
+          sysTransferText,
+          `ev-transfer-${payload.newHostId}-${transferTs}`,
+          transferTs
+        );
+        setChat((prev) => (prev.some((c) => c.id === sysTransfer.id) ? prev : [...prev, sysTransfer].slice(-120)));
+        hRef.current.onToast?.(sysTransferText);
       });
 
       ch.on("broadcast", { event: "member_rename" }, ({ payload }) => {
@@ -929,8 +989,11 @@ export function useRoom(handlers: RoomHandlers) {
         if (oldNick && oldNick !== cleanNew && oldNick !== "A member") {
           const text = `${oldNick} is now known as ${cleanNew}`;
           hRef.current.onToast?.(text);
-          const sys = systemMsg(text);
-          setChat((prev) => [...prev, sys].slice(-120));
+          const sys = systemMsg(text, `ev-rename-${uid}-${Math.floor(Date.now() / 20000)}`);
+          setChat((prev) => {
+            if (prev.some((c) => c.id === sys.id)) return prev;
+            return [...prev, sys].slice(-120);
+          });
         }
       });
 
@@ -965,7 +1028,12 @@ export function useRoom(handlers: RoomHandlers) {
 
           if (!knownMemberIdsRef.current.has(payload.id)) {
             knownMemberIdsRef.current.add(payload.id);
-            notifyMemberEvent("join", payload.id, cleanNick);
+            notifyMemberEvent(
+              "join",
+              payload.id,
+              cleanNick,
+              payload.at ? `ev-join-${payload.id}-${Math.floor(payload.at / 60000)}` : undefined
+            );
           }
         }
         syncMembers(ch);
@@ -982,11 +1050,12 @@ export function useRoom(handlers: RoomHandlers) {
               : "A member";
 
           explicitlyLeftRef.current.set(uid, Date.now());
+          presenceExitedRef.current.delete(uid);
           knownMembersCacheRef.current.delete(uid);
           knownMemberIdsRef.current.delete(uid);
 
           setMembers((prev) => prev.filter((m) => m.id !== uid));
-          notifyMemberEvent("leave", uid, leftName);
+          notifyMemberEvent("leave", uid, leftName, payload.at ? `lv-${uid}-${payload.at}` : `lv-${uid}-${Math.floor(Date.now() / 20000)}`);
           if (uid === roomRef.current?.hostId && statusRef.current === "member") {
             electSuccessor(knownMembersCacheRef.current);
           }
@@ -1222,19 +1291,22 @@ export function useRoom(handlers: RoomHandlers) {
           setActiveChannel(ch);
           setConnection("connected");
           const myNick = savedNickname() || nickname || "Guest";
+          // One canonical join timestamp, shared by presence meta and the
+          // member_joined broadcast so every client derives the same event id.
+          const joinAt = Date.now();
           ch.track({
             id: me.current,
             nickname: myNick,
             role,
             state: "active",
-            at: Date.now(),
+            at: joinAt,
             apk: isAndroidApp(),
             avatar: avatarRef.current,
           }).catch(() => {});
           ch.send({
             type: "broadcast",
             event: "member_joined",
-            payload: { id: me.current, nickname: myNick, role },
+            payload: { id: me.current, nickname: myNick, role, at: joinAt },
           }).catch(() => {});
           syncMembers(ch);
           requestNotificationPermission();
@@ -1611,9 +1683,14 @@ export function useRoom(handlers: RoomHandlers) {
   }, []);
 
   const clearChat = useCallback(() => {
+    // Host-only: keep the room's chat master copy in sync with late-join synchronization.
+    if (statusRef.current !== "hosting" && roomRef.current?.hostId !== me.current) return;
     const ch = chatChanRef.current || chanRef.current;
     ch?.send({ type: "broadcast", event: "chat_clear", payload: {} }).catch(() => {});
+    chatRef.current = [];
+    pendingChatQueue.current = [];
     setChat([]);
+    hRef.current.onToast?.("Chat cleared for everyone");
   }, []);
 
   const setChatEnabled = useCallback((on: boolean) => {
@@ -1656,7 +1733,7 @@ export function useRoom(handlers: RoomHandlers) {
     chanRef.current?.send({
       type: "broadcast",
       event: "host_transfer",
-      payload: { newHostId: uid, newHostName: targetNick, roomName: newRoomName },
+      payload: { newHostId: uid, newHostName: targetNick, roomName: newRoomName, at: Date.now() },
     }).catch(() => {});
     setRoom((r) => (r ? { ...r, hostId: uid, hostName: targetNick, name: newRoomName } : r));
     if (roomRef.current) {
@@ -1696,8 +1773,9 @@ export function useRoom(handlers: RoomHandlers) {
     }
     const kicked = members.find((m) => m.id === uid);
     const kickedName = kicked?.nickname || "Member";
-    chanRef.current?.send({ type: "broadcast", event: "kick", payload: { userId: uid } }).catch(() => {});
-    const sysKick = systemMsg(`${kickedName} was removed from the room`);
+    const evAt = Date.now();
+    chanRef.current?.send({ type: "broadcast", event: "kick", payload: { userId: uid, at: evAt } }).catch(() => {});
+    const sysKick = systemMsg(`${kickedName} was removed from the room`, `ev-kick-${uid}-${evAt}`, evAt);
     const chatCh = chatChanRef.current || chanRef.current;
     chatCh?.send({ type: "broadcast", event: "chat", payload: sysKick }).catch(() => {});
     setMembers((prev) => prev.filter((m) => m.id !== uid));
@@ -1708,18 +1786,19 @@ export function useRoom(handlers: RoomHandlers) {
     if (targetUid === me.current) return;
     const target = members.find((m) => m.id === targetUid);
     if (!target) return;
+    const evAt = Date.now();
     chanRef.current?.send({
       type: "broadcast",
       event: "member_role",
-      payload: { userId: targetUid, role: "host" },
+      payload: { userId: targetUid, role: "host", at: evAt },
     }).catch(() => {});
     setMembers((prev) =>
       prev.map((m) => (m.id === targetUid ? { ...m, role: "host" } : m))
     );
-    const sysMsg = systemMsg(`${target.nickname} was promoted to Co-Host`);
+    const sysMsg = systemMsg(`${target.nickname} was promoted to Co-Host`, `ev-promote-${targetUid}-${evAt}`, evAt);
     const chatCh = chatChanRef.current || chanRef.current;
     chatCh?.send({ type: "broadcast", event: "chat", payload: sysMsg }).catch(() => {});
-    setChat((prev) => [...prev, sysMsg].slice(-120));
+    setChat((prev) => (prev.some((c) => c.id === sysMsg.id) ? prev : [...prev, sysMsg].slice(-120)));
   }, [members]);
 
   const demoteHost = useCallback((targetUid: string) => {
@@ -1727,29 +1806,31 @@ export function useRoom(handlers: RoomHandlers) {
     if (targetUid === roomRef.current?.hostId) return;
     const target = members.find((m) => m.id === targetUid);
     if (!target) return;
+    const evAt = Date.now();
     chanRef.current?.send({
       type: "broadcast",
       event: "member_role",
-      payload: { userId: targetUid, role: "member" },
+      payload: { userId: targetUid, role: "member", at: evAt },
     }).catch(() => {});
     setMembers((prev) =>
       prev.map((m) => (m.id === targetUid ? { ...m, role: "member" } : m))
     );
-    const sysMsg = systemMsg(`${target.nickname} was demoted to Member`);
+    const sysMsg = systemMsg(`${target.nickname} was demoted to Member`, `ev-demote-${targetUid}-${evAt}`, evAt);
     const chatCh = chatChanRef.current || chanRef.current;
     chatCh?.send({ type: "broadcast", event: "chat", payload: sysMsg }).catch(() => {});
-    setChat((prev) => [...prev, sysMsg].slice(-120));
+    setChat((prev) => (prev.some((c) => c.id === sysMsg.id) ? prev : [...prev, sysMsg].slice(-120)));
   }, [members]);
 
   const toggleVoiceEnabled = useCallback((on: boolean) => {
     if (!isHost && myRole !== "owner") return;
     setRoom((r) => (r ? { ...r, voiceEnabled: on } : r));
     if (roomRef.current) roomRef.current.voiceEnabled = on;
-    chanRef.current?.send({ type: "broadcast", event: "voice_toggle", payload: { voiceEnabled: on } }).catch(() => {});
-    const sysMsg = systemMsg(`Voice was ${on ? "enabled" : "disabled"} by ${isOwner ? "Owner" : "Host"}`);
+    const evAt = Date.now();
+    chanRef.current?.send({ type: "broadcast", event: "voice_toggle", payload: { voiceEnabled: on, at: evAt } }).catch(() => {});
+    const sysMsg = systemMsg(`Voice was ${on ? "enabled" : "disabled"} by ${isOwner ? "Owner" : "Host"}`, `ev-voice-${evAt}`, evAt);
     const chatCh = chatChanRef.current || chanRef.current;
     chatCh?.send({ type: "broadcast", event: "chat", payload: sysMsg }).catch(() => {});
-    setChat((prev) => [...prev, sysMsg].slice(-120));
+    setChat((prev) => (prev.some((c) => c.id === sysMsg.id) ? prev : [...prev, sysMsg].slice(-120)));
   }, [isHost, myRole, isOwner]);
 
   const closeRoom = useCallback(() => {
@@ -1778,7 +1859,7 @@ export function useRoom(handlers: RoomHandlers) {
     chanRef.current?.send({
       type: "broadcast",
       event: "member_left",
-      payload: { userId: me.current, nickname: myNick },
+      payload: { userId: me.current, nickname: myNick, at: Date.now() },
     }).catch(() => {});
     chanRef.current?.untrack().catch(() => {});
 
@@ -1789,15 +1870,14 @@ export function useRoom(handlers: RoomHandlers) {
       const newHostNick = newHost.nickname || "Host";
       const updatedRoomName = `${newHostNick}'s Room`;
 
+      const transferAt = Date.now();
       const transferPayload = {
         newHostId: newHost.id,
         newHostName: newHostNick,
         roomName: updatedRoomName,
+        at: transferAt,
       };
       chanRef.current?.send({ type: "broadcast", event: "host_transfer", payload: transferPayload }).catch(() => {});
-      const sysTransfer = systemMsg(`${newHostNick} is now the host`);
-      const chatCh = chatChanRef.current || chanRef.current;
-      chatCh?.send({ type: "broadcast", event: "chat", payload: sysTransfer }).catch(() => {});
       setRoom((r) => (r ? { ...r, hostId: newHost.id, hostName: newHostNick, name: updatedRoomName } : r));
       if (roomRef.current) {
         roomRef.current.hostId = newHost.id;
@@ -2063,7 +2143,7 @@ export function useRoom(handlers: RoomHandlers) {
         chanRef.current?.send({
           type: "broadcast",
           event: "member_left",
-          payload: { userId: me.current, nickname: myNick },
+          payload: { userId: me.current, nickname: myNick, at: Date.now() },
         }).catch(() => {});
       }
       chanRef.current?.untrack().catch(() => {});
@@ -2228,10 +2308,10 @@ export function useRoom(handlers: RoomHandlers) {
     approve,
     reject,
     sendChat,
+    clearChat,
     retryChat,
     sendTyping,
     deleteChat,
-    clearChat,
     setChatEnabled,
     markChatAsRead,
     updatePermissions,

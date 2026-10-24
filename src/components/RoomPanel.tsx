@@ -1,5 +1,6 @@
 import {
   BroadcastIcon,
+  BroomIcon,
   ChatCircleDotsIcon,
   CheckIcon,
   CopyIcon,
@@ -265,6 +266,7 @@ export function RoomPanel({
 
   // Join Code Form State
   const [joinCode, setJoinCode] = useState("");
+const [entryMode, setEntryMode] = useState<"join" | "create">("join");
 
   // In-Room State
   const [inRoomTab, setInRoomTab] = useState<"chat" | "info">("chat");
@@ -358,7 +360,7 @@ export function RoomPanel({
   /* ============================================================ */
   if (!inRoom) {
       return (
-        <div className="flex flex-col gap-3.5 max-w-4xl mx-auto w-full px-2 sm:px-4 py-2 sm:py-3 animate-in fade-in duration-300">
+        <div className="flex flex-col gap-3.5 w-full max-w-6xl xl:max-w-7xl 2xl:max-w-[96rem] mx-auto px-2 sm:px-4 py-2 sm:py-3 animate-in fade-in duration-300">
                 {/* User Identity Banner — avatar and name update instantly, and can be edited any time */}
         <div className="flex items-center justify-between gap-3 p-3 sm:p-3.5 rounded-2xl bg-surface-1 border border-line shadow-sm">
           <div className="flex items-center gap-3.5 min-w-0">
@@ -445,7 +447,7 @@ export function RoomPanel({
               </span>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
               {room.publicRooms.map((r) => (
                 <div
                   key={r.code}
@@ -484,20 +486,70 @@ export function RoomPanel({
           )}
         </div>
 
-        {/* Main Grid: Create & Join */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* Create Room Card */}
-          <div className="p-5 rounded-2xl bg-surface-1 border border-line flex flex-col gap-4 shadow-sm">
-            <div className="flex items-center gap-2.5">
-              <span className="grid size-9 place-items-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent-text)]">
-                <PlusIcon size={20} weight="bold" />
-              </span>
+        {/* Main Entry Card: Join with Code (default) / Create a Room */}
+        <div className="p-5 rounded-2xl bg-surface-1 border border-line flex flex-col gap-4 shadow-sm">
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setEntryMode("join")}
+              className={cn(
+                "flex items-center justify-center gap-2 h-10 rounded-xl text-xs font-semibold border transition-all",
+                entryMode === "join"
+                  ? "bg-[var(--accent-soft)] border-accent text-[var(--accent-text)] shadow-xs"
+                  : "bg-surface-2 border-line text-fg-2 hover:bg-surface-3"
+              )}
+            >
+              <BroadcastIcon size={16} /> Join with Code
+            </button>
+            <button
+              type="button"
+              onClick={() => setEntryMode("create")}
+              className={cn(
+                "flex items-center justify-center gap-2 h-10 rounded-xl text-xs font-semibold border transition-all",
+                entryMode === "create"
+                  ? "bg-[var(--accent-soft)] border-accent text-[var(--accent-text)] shadow-xs"
+                  : "bg-surface-2 border-line text-fg-2 hover:bg-surface-3"
+              )}
+            >
+              <PlusIcon size={16} /> Create a Room
+            </button>
+          </div>
+
+          {entryMode === "join" ? (
+            <div className="flex flex-col gap-3.5">
               <div>
-                <h3 className="text-base font-semibold text-fg">Create a Room</h3>
-                <p className="text-xs text-fg-3">Host a listening session with synchronized playback</p>
+                <label className="text-xs font-medium text-fg-2 block mb-1">Room Code</label>
+                <input
+                  type="text"
+                  value={joinCode}
+                  onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                  placeholder="e.g. AB12CD"
+                  maxLength={10}
+                  className="w-full h-11 px-4 rounded-xl bg-surface-2 border border-line text-base font-mono uppercase tracking-widest text-fg placeholder:text-fg-3 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!ensureNick()) return;
+                  if (!joinCode.trim()) {
+                    onToast("Please enter a room code");
+                    return;
+                  }
+                  room.joinRoom(joinCode.trim(), nick);
+                }}
+                className="w-full h-11 rounded-xl bg-accent text-accent-ink font-semibold text-sm hover:brightness-105 active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-md"
+              >
+                <HeadphonesIcon size={18} weight="bold" /> Join Room
+              </button>
+
+              {/* Hint Box */}
+              <div className="p-3 rounded-xl bg-surface-2/60 border border-line text-xs text-fg-3 flex items-start gap-2">
+                <HeadphonesIcon size={16} className="shrink-0 text-[var(--accent-text)] mt-0.5" />
+                <span>Music streams and position sync automatically across all listeners in the room.</span>
               </div>
             </div>
-
+          ) : (
             <div className="flex flex-col gap-3.5">
               <div>
                 <label className="text-xs font-medium text-fg-2 block mb-1">Room Name</label>
@@ -616,61 +668,12 @@ export function RoomPanel({
                     nickname: nick,
                   });
                 }}
-                className="w-full h-11 mt-2 rounded-xl bg-accent text-accent-ink font-semibold text-sm hover:brightness-105 active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-md"
+                className="w-full h-11 rounded-xl bg-accent text-accent-ink font-semibold text-sm hover:brightness-105 active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-md"
               >
                 <SparkleIcon size={18} weight="bold" /> Start Room
               </button>
             </div>
-          </div>
-
-          {/* Join with Code Card */}
-          <div className="p-5 rounded-2xl bg-surface-1 border border-line flex flex-col justify-between gap-4 shadow-sm">
-            <div>
-              <div className="flex items-center gap-2.5">
-                <span className="grid size-9 place-items-center rounded-xl bg-surface-3 text-fg-2">
-                  <BroadcastIcon size={20} />
-                </span>
-                <div>
-                  <h3 className="text-base font-semibold text-fg">Join with Code</h3>
-                  <p className="text-xs text-fg-3">Enter an invite code to join an active room</p>
-                </div>
-              </div>
-
-              <div className="mt-4 flex flex-col gap-3">
-                <div>
-                  <label className="text-xs font-medium text-fg-2 block mb-1">Room Code</label>
-                  <input
-                    type="text"
-                    value={joinCode}
-                    onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                    placeholder="e.g. AB12CD"
-                    maxLength={10}
-                    className="w-full h-11 px-4 rounded-xl bg-surface-2 border border-line text-base font-mono uppercase tracking-widest text-fg placeholder:text-fg-3 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all"
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!ensureNick()) return;
-                    if (!joinCode.trim()) {
-                      onToast("Please enter a room code");
-                      return;
-                    }
-                    room.joinRoom(joinCode.trim(), nick);
-                  }}
-                  className="w-full h-11 rounded-xl bg-surface-3 hover:bg-surface-4 text-fg font-semibold text-sm active:scale-[0.98] transition-all flex items-center justify-center gap-2 border border-line-strong"
-                >
-                  Join Room
-                </button>
-              </div>
-            </div>
-
-            {/* Hint Box */}
-            <div className="p-3 rounded-xl bg-surface-2/60 border border-line text-xs text-fg-3 flex items-start gap-2">
-              <HeadphonesIcon size={16} className="shrink-0 text-[var(--accent-text)] mt-0.5" />
-              <span>Music streams and position sync automatically across all listeners in the room.</span>
-            </div>
-          </div>
+          )}
         </div>
 
         {/* Identity editing any time: closable popup */}
@@ -817,16 +820,14 @@ export function RoomPanel({
                 <span className={cn("text-[11px] font-medium px-2 py-0.5 rounded-full border", voicePill.cls)}>
                   {voicePill.label}
                 </span>
-                {roomVoiceOn && (
-                  <button
-                    type="button"
-                    onClick={openVoiceSettings}
-                    title="Voice settings (microphone, speaker & connection token)"
-                    className="p-1.5 rounded-lg bg-surface-2 text-fg-2 hover:text-accent border border-line transition-colors"
-                  >
-                    <GearSixIcon size={13} />
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={openVoiceSettings}
+                  title="Voice settings (microphone, speaker & connection token)"
+                  className="p-1.5 rounded-lg bg-surface-2 text-fg-2 hover:text-accent border border-line transition-colors"
+                >
+                  <GearSixIcon size={13} />
+                </button>
               </div>
             </div>
 
@@ -1053,14 +1054,6 @@ export function RoomPanel({
                   >
                     <MicrophoneIcon size={16} weight="bold" /> Join Voice
                   </button>
-                  <button
-                    type="button"
-                    onClick={openVoiceSettings}
-                    title="Voice settings (microphone, speaker & connection token)"
-                    className="p-2 h-10 grid place-items-center rounded-xl bg-surface-2 text-fg-2 hover:text-accent border border-line transition-all active:scale-95 shrink-0"
-                  >
-                    <GearSixIcon size={15} />
-                  </button>
                 </div>
               </div>
             )}
@@ -1087,7 +1080,7 @@ export function RoomPanel({
                     key={m.id}
                     className="flex items-center justify-between gap-2 p-2 rounded-xl bg-surface-2/60 border border-line hover:bg-surface-2 transition-colors"
                   >
-                    <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
                       <div className="size-8 rounded-full overflow-hidden shadow-xs shrink-0 ring-1 ring-line/60 bg-surface-3">
                         {typeof m.avatar === "number" && m.avatar >= 0 ? (
                           <AvatarArt id={m.avatar} className="size-full" />
@@ -1100,40 +1093,45 @@ export function RoomPanel({
                           </div>
                         )}
                       </div>
-                      <div className="min-w-0 flex items-center gap-1.5">
-                        <span className="text-xs font-semibold text-fg truncate">
-                          {m.nickname} {isMe && "(You)"}
-                        </span>
-                        {m.apk && (
-                          <span
-                            className="shrink-0"
-                            title="Joined from the CReEPUSIK Android app"
-                            aria-label="Joined from the CReEPUSIK Android app"
-                          >
-                            <DeviceMobileIcon size={13} weight="fill" className="text-[var(--accent-text)]" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="text-xs font-semibold text-fg truncate">
+                            {m.nickname}
+                            {isMe && " (You)"}
                           </span>
-                        )}
-                        <span className="text-[10px] text-fg-3 font-mono">
-                          {isUserHost ? "Session Host" : "Listener"}
-                        </span>
-                        {voiceIdsSet.has(m.id) && (
-                          <span
-                            title="Currently in the voice channel"
-                            className="shrink-0 flex items-center gap-0.5 text-[10px] font-mono text-emerald-500 bg-emerald-500/10 border border-emerald-500/25 rounded-full px-1.5"
-                          >
-                            <MicrophoneIcon size={11} weight="fill" /> voice
-                          </span>
-                        )}
+                          {m.apk && (
+                            <span
+                              className="shrink-0"
+                              title="Joined from the CReEPUSIK Android app"
+                              aria-label="Joined from the CReEPUSIK Android app"
+                            >
+                              <DeviceMobileIcon size={13} weight="fill" className="text-[var(--accent-text)]" />
+                            </span>
+                          )}
+                          {isUserHost && (
+                            <span
+                              className="shrink-0"
+                              title={m.role === "owner" ? "Room Owner" : "Co-Host"}
+                            >
+                              <CrownSimpleIcon size={12} weight="fill" className="text-amber-400" />
+                            </span>
+                          )}
+                          {voiceIdsSet.has(m.id) && (
+                            <span
+                              title="Currently in the voice channel"
+                              className="shrink-0 flex items-center gap-0.5 text-[10px] font-mono text-emerald-500 bg-emerald-500/10 border border-emerald-500/25 rounded-full px-1.5"
+                            >
+                              <MicrophoneIcon size={11} weight="fill" /> voice
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-fg-3 font-mono truncate">
+                          {isUserHost ? (m.role === "owner" ? "Room Owner · Session Host" : "Co-Host · Session Host") : "Listener"}
+                        </div>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-1.5 shrink-0">
-                      {isUserHost && (
-                        <span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 shrink-0">
-                          <CrownSimpleIcon size={12} weight="fill" /> {m.role === "owner" ? "Owner" : "Co-Host"}
-                        </span>
-                      )}
-
                       {isHost && !isMe && m.role !== "owner" && (
                         <div className="flex items-center gap-1">
                           {room.isOwner && (
@@ -1259,6 +1257,18 @@ export function RoomPanel({
               <span className="text-sm font-semibold text-fg">Live Room Chat</span>
             </div>
             <div className="flex items-center gap-2">
+              {room.isHost && (
+                <button
+                  type="button"
+                  title="Clear the chat for everyone"
+                  onClick={() => {
+                    if (window.confirm("Clear the chat for every member of this room?")) room.clearChat();
+                  }}
+                  className="p-1.5 rounded-lg bg-surface-2 text-fg-3 hover:text-danger hover:bg-danger/10 border border-line transition-colors"
+                >
+                  <BroomIcon size={13} />
+                </button>
+              )}
               <span className="text-xs font-mono text-fg-3">{room.chat.length} messages</span>
             </div>
           </div>
@@ -1287,9 +1297,15 @@ export function RoomPanel({
                 const isMine = m.userId === room.me;
                 if (m.system) {
                   return (
-                    <div key={m.id} className="text-center py-1">
+                    <div key={m.id} className="flex items-center justify-center gap-1.5 py-1">
                       <span className="text-[11px] font-medium text-fg-3 px-3 py-1 rounded-full bg-surface-2 border border-line">
                         {m.message}
+                      </span>
+                      <span
+                        className="text-[10px] font-mono text-fg-3"
+                        title={new Date(m.ts).toLocaleString()}
+                      >
+                        {new Date(m.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                       </span>
                     </div>
                   );
@@ -1328,6 +1344,14 @@ export function RoomPanel({
                             </span>
                           )}
                           <span className="text-[10px] text-fg-3 font-mono ml-0.5">
+                            {new Date(m.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                          </span>
+                        </div>
+                      )}
+                      {isMine && (
+                        <div className="flex items-center justify-end gap-1.5 mr-1">
+                          <span className="text-[10px] text-fg-3 font-mono">
+                            {m.status === "failed" ? "Not delivered · " : ""}
                             {new Date(m.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                           </span>
                         </div>
@@ -1414,6 +1438,38 @@ export function RoomPanel({
                 </option>
               ))}
             </select>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-fg-2 block mb-1">Noise Cancellation</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => voice.setNoiseCancel(true)}
+                className={cn(
+                  "flex items-center justify-center gap-2 h-9 rounded-xl text-xs font-medium border transition-all",
+                  voice.noiseCancel
+                    ? "bg-[var(--accent-soft)] border-accent text-[var(--accent-text)] font-semibold shadow-xs"
+                    : "bg-surface-2 border-line text-fg-2 hover:bg-surface-3"
+                )}
+              >
+                On
+              </button>
+              <button
+                type="button"
+                onClick={() => voice.setNoiseCancel(false)}
+                className={cn(
+                  "flex items-center justify-center gap-2 h-9 rounded-xl text-xs font-medium border transition-all",
+                  !voice.noiseCancel
+                    ? "bg-[var(--accent-soft)] border-accent text-[var(--accent-text)] font-semibold shadow-xs"
+                    : "bg-surface-2 border-line text-fg-2 hover:bg-surface-3"
+                )}
+              >
+                Off
+              </button>
+            </div>
+            <p className="text-[10px] text-fg-3 mt-1">
+              Filters background noise from your microphone. On by default.
+            </p>
           </div>
           <div>
             <label className="text-xs font-medium text-fg-2 block mb-1">Speaker output</label>

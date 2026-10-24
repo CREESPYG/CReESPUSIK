@@ -5,6 +5,7 @@ import { backgroundKeepAlive } from "../lib/backgroundKeepAlive";
 import { notify as notifyBrowserEvent, requestNotificationPermission } from "../lib/notify";
 import type { Member, MemberRole, VoiceParticipant } from "../lib/room";
 import { getTabSessionId } from "../lib/room";
+import { voiceJoinChime, voiceDropChime } from "../lib/tones";
 
 /**
  * The Agora engine is a heavy chunk — load it only the first time the user
@@ -66,6 +67,13 @@ export function useVoice({
   const [, setVolTicker] = useState(0);
   const [lastError, setLastError] = useState<string>("");
   const [captureDeviceLabel, setCaptureDeviceLabel] = useState<string>("");
+  // Noise cancellation is ON by default; the preference is per-user persisted.
+  const [noiseCancel, setNoiseCancelState] = useState<boolean>(() => {
+    try {
+      if (localStorage.getItem("creespy_voice_ans") === "0") return false;
+    } catch {}
+    return true;
+  });
   const [manualCreds, setManualCreds] = useState<{ token: string; channel: string }>({ token: "", channel: "" });
 
   const rtcRef = useRef<AgoraVoiceManager | null>(null);
@@ -73,6 +81,8 @@ export function useVoice({
   chanRef.current = channel;
   const myParticipantRef = useRef<VoiceParticipant | null>(null);
   const missingTimerRef = useRef<Map<string, number>>(new Map());
+  // Uids we actually saw in voice — guards the drop chime from stale broadcasts.
+  const voiceDropRef = useRef<Set<string>>(new Set());
   const statusRef = useRef<VoiceStatus>(status);
   statusRef.current = status;
   const membersRef = useRef<Member[]>(members);
@@ -141,6 +151,7 @@ export function useVoice({
     setCaptureDeviceLabel("");
     if (notify) {
       onToast("Disconnected from Voice Channel");
+      voiceDropChime();
       notifyVoiceEvent("Voice Chat", "Disconnected from Voice Channel", "self-status");
     }
   }, [myUserId, sendVoiceBroadcast, onToast]);
@@ -237,10 +248,12 @@ export function useVoice({
         channel: channelName,
         uid: myUserId,
         deviceId: selectedInput || undefined,
+        noiseCancel,
         tokenProvider,
       });
       setStatus("connected");
       onToast("Connected to Voice Channel");
+      voiceJoinChime();
       notifyVoiceEvent("Voice Chat", "Connected to Voice Channel", "self-status");
       requestNotificationPermission();
 
@@ -391,6 +404,27 @@ export function useVoice({
     }
   }, [onToast]);
 
+  /** Toggle noise cancellation (ANS) — live when connected, persisted always. */
+  const setNoiseCancel = useCallback(
+    async (on: boolean) => {
+      setNoiseCancelState(on);
+      try {
+        localStorage.setItem("creespy_voice_ans", on ? "1" : "0");
+      } catch {}
+      if (statusRef.current === "connected" && rtcRef.current) {
+        try {
+          await rtcRef.current.setNoiseCancellation(on);
+          onToast(on ? "Noise cancellation enabled" : "Noise cancellation disabled");
+        } catch {
+          onToast("Could not apply noise cancellation change");
+        }
+      } else {
+        onToast(on ? "Noise cancellation enabled" : "Noise cancellation disabled");
+      }
+    },
+    [onToast]
+  );
+
   useEffect(() => {
     if (myParticipantRef.current) {
       myParticipantRef.current.selfMuted = selfMuted;
@@ -508,12 +542,16 @@ export function useVoice({
     /** Phase 21 — prune voice participants whose heartbeat stops (12s TTL,
      *  heartbeat ticks every 2.5s ≈ 4 missed beats). Re-armed on any activity. */
     const armMissing = (userId: string) => {
+      voiceDropRef.current.add(userId);
       const prev = missingTimerRef.current.get(userId);
       if (prev) window.clearTimeout(prev);
       const t = window.setTimeout(() => {
         missingTimerRef.current.delete(userId);
+        voiceDropRef.current.delete(userId);
         setVoiceUsers((prevUsers) => {
           if (!prevUsers.has(userId)) return prevUsers;
+          // Meet-style farewell when someone silently drops from voice.
+          if (statusRef.current === "connected") voiceDropChime();
           const next = new Map(prevUsers);
           next.delete(userId);
           return next;
@@ -543,6 +581,7 @@ export function useVoice({
       // Only announce to user if local user is actually active in voice
       if (statusRef.current === "connected" && payload.nickname) {
         onToastRef.current(`${payload.nickname} joined voice`);
+        voiceJoinChime();
         notifyVoiceEvent("Voice Chat", `${payload.nickname} joined voice`, `user-${payload.userId}-join`);
       }
 
@@ -616,6 +655,10 @@ export function useVoice({
       if (t) {
         window.clearTimeout(t);
         missingTimerRef.current.delete(payload.userId);
+      }
+      if (statusRef.current === "connected" && voiceDropRef.current.has(payload.userId)) {
+        voiceDropRef.current.delete(payload.userId);
+        voiceDropChime();
       }
       setVoiceUsers((prev) => {
         const next = new Map(prev);
@@ -788,6 +831,8 @@ export function useVoice({
     isUserLocallyMuted,
     setAudioInputDevice,
     setAudioOutputDevice,
+    setNoiseCancel,
+    noiseCancel,
     setMemberHostMuted,
     setMemberCanSpeak,
     setMemberCanHear,

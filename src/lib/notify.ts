@@ -12,6 +12,8 @@
 const SLOT_KEY = "creespy.notif.slots.v1";
 const recentShown = new Map<string, number>();
 
+import { isNative, MusikeNotify } from "./nativeNotify";
+
 interface SlotMap {
   [id: string]: number;
 }
@@ -81,8 +83,10 @@ export interface NotifyOptions {
  * - Returns true if a notification was actually shown.
  */
 export function notify(title: string, body: string, opts: NotifyOptions = {}): boolean {
-  if (typeof window === "undefined" || !("Notification" in window)) return false;
-  if (Notification.permission !== "granted") return false;
+  if (typeof window === "undefined") return false;
+  const native = isNative();
+  if (!native && !("Notification" in window)) return false;
+  if (!native && Notification.permission !== "granted") return false;
 
   // Don't bother the user while they are looking at the app
   if (document.hasFocus() && document.visibilityState === "visible") return false;
@@ -107,6 +111,13 @@ export function notify(title: string, body: string, opts: NotifyOptions = {}): b
     if (!claimed) return false;
   } catch {
     /* guard failures never block showing a notification */
+  }
+
+  if (native) {
+    // Route through the native bridge: WebView has no Notification API, so the
+    // same dedup guarantees lead to a real Android notification (heads-up).
+    void MusikeNotify.show({ title, body, tag, autoClose: opts.autoCloseMs ?? 5500 });
+    return true;
   }
 
   try {
@@ -134,9 +145,12 @@ export function notify(title: string, body: string, opts: NotifyOptions = {}): b
   }
 }
 
-/** Request browser notification permission (fire & forget). */
+/** Request browser notification permission (fire & forget). On the Android app
+ * the runtime POST_NOTIFICATIONS grant is requested by MainActivity at launch. */
 export function requestNotificationPermission() {
-  if (typeof window === "undefined" || !("Notification" in window)) return;
+  if (typeof window === "undefined") return;
+  if (isNative()) return;
+  if (!("Notification" in window)) return;
   if (Notification.permission === "default") {
     Notification.requestPermission().catch(() => {});
   }

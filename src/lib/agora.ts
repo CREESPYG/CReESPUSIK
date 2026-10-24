@@ -131,6 +131,8 @@ export interface AgoraStartOptions {
   channel: string;
   uid: string;
   deviceId?: string;
+  /** Noise suppression (ANS) on the capture — ON by default. */
+  noiseCancel?: boolean;
   /** Fetch a signed token from the app's backend (used when the App Certificate is enabled). */
   tokenProvider?: () => Promise<string | null>;
 }
@@ -209,9 +211,13 @@ export class AgoraVoiceManager {
 
   /* ---------------- Media device helpers ---------------- */
 
+  /** Noise-suppression preference for the mic capture (default ON). */
+  noiseCancel = true;
+
   async start(opts: AgoraStartOptions): Promise<void> {
     if (this.destroyed) throw new Error("Engine was destroyed");
     this.micDeviceId = opts.deviceId || null;
+    this.noiseCancel = opts.noiseCancel !== false;
     this.callbacks.onConnectionState("connecting");
 
     const manual = getManualAgoraCredentials();
@@ -284,14 +290,13 @@ export class AgoraVoiceManager {
     this.micTrack = await AgoraRTC.createMicrophoneAudioTrack({
       // Capture ONLY the microphone signal: echo cancellation removes anything
       // the speakers/system playback feeds back, and noise suppression drops
-      // desktop noise — explicit so defaults never silently change.
+      // desktop noise — ANS follows the user's Voice Settings toggle (default on).
       microphoneId: micDeviceId || undefined,
       AEC: true,
-      ANS: true,
+      ANS: this.noiseCancel,
       AGC: true,
       bypassWebAudio: false,
     });
-    this.applyMicEnabled();
 
     // Surface which physical device is doing the capture so wrong-device
     // routing (OS loopback / stale default) is instantly visible.
@@ -306,8 +311,13 @@ export class AgoraVoiceManager {
     this.micDeviceLabel = await resolveMicrophoneLabel(trackDeviceId || micDeviceId);
     this.callbacks.onMicrophoneDevice?.(this.micDeviceLabel, trackDeviceId || micDeviceId);
 
+    // Agora refuses to publish a DISABLED track (TRACK_IS_DISABLED). The track
+    // is freshly created and therefore enabled — publish first, and only then
+    // fold the current mute state (self/host muted or talk permission off)
+    // into the live track.
     await client.publish([this.micTrack]);
     this.published = true;
+    this.applyMicEnabled();
 
     this.startPolling();
   }
@@ -476,14 +486,16 @@ export class AgoraVoiceManager {
     this.remotes.forEach((track, uid) => this.applyRemotePlayback(uid, track));
   }
 
-  /** Switch microphone by device id — recreates & republishes the track. */
-  async setMicrophoneDevice(deviceId: string): Promise<void> {
+  /** Switch microphone by device id — recreates & republishes the track.
+   * Optionally (re)applies the noise-suppression flag in the same recreate. */
+  async setMicrophoneDevice(deviceId: string, ans?: boolean): Promise<void> {
     if (!this.client) return;
+    if (typeof ans === "boolean") this.noiseCancel = ans;
     const old = this.micTrack;
     const next = await AgoraRTC.createMicrophoneAudioTrack({
       microphoneId: deviceId,
       AEC: true,
-      ANS: true,
+      ANS: this.noiseCancel,
       AGC: true,
       bypassWebAudio: false,
     });
@@ -497,10 +509,22 @@ export class AgoraVoiceManager {
     old?.close();
     this.micTrack = next;
     this.micDeviceId = deviceId;
-    this.applyMicEnabled();
+    // Same order-of-operations rule as the initial publish: an enabled track is
+    // required for publish; mute state folds in afterwards.
     if (this.published) {
       await this.client.publish([next]);
     }
+    this.applyMicEnabled();
+  }
+
+  /** Toggle noise suppression live: recreates the mic track with the new ANS
+   * flag on the currently selected device (no-op when not connected). */
+  async setNoiseCancellation(on: boolean): Promise<void> {
+    if (!this.client || !this.micTrack) {
+      this.noiseCancel = on;
+      return;
+    }
+    await this.setMicrophoneDevice(this.micDeviceId || "default", on);
   }
 
   /** Set remote playback output device (Chrome support). */

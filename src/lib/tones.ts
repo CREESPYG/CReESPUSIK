@@ -69,6 +69,33 @@ export function popOut() {
   note(ac, bus, 330, t + 0.12, 0.18, 0.45);
 }
 
+/** Meet-style voice join: bright, friendly two-note ascending trill
+ * ("door-open" greeting) for joining / hearing someone join voice. */
+export function voiceJoinChime() {
+  const ac = context();
+  if (!ac) return;
+  const t = ac.currentTime + 0.02;
+  const bus = ac.createGain();
+  bus.gain.value = 0.55;
+  bus.connect(ac.destination);
+  oscSweep(ac, bus, 587, 784, t, 0.08, 0.35);
+  note(ac, bus, 784, t + 0.09, 0.14, 0.35);
+  note(ac, bus, 1047, t + 0.21, 0.22, 0.3);
+}
+
+/** Meet-style voice drop: soft descending farewell for leaving / hearing
+ * someone drop from voice (quieter than join so exits stay unobtrusive). */
+export function voiceDropChime() {
+  const ac = context();
+  if (!ac) return;
+  const t = ac.currentTime + 0.02;
+  const bus = ac.createGain();
+  bus.gain.value = 0.4;
+  bus.connect(ac.destination);
+  oscSweep(ac, bus, 784, 523, t, 0.1, 0.3);
+  note(ac, bus, 392, t + 0.12, 0.2, 0.28);
+}
+
 /** A short swoop-shaped note (frequency glides from one pitch to another). */
 function oscSweep(
   ac: AudioContext,
