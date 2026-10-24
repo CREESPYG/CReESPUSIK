@@ -38,35 +38,14 @@ import {
 } from "../lib/room";
 import { useVoice } from "./useVoice";
 import { backgroundKeepAlive } from "../lib/backgroundKeepAlive";
+import { notify as notifyBrowserEvent, requestNotificationPermission } from "../lib/notify";
 import { popIn, popOut } from "../lib/tones";
-
-/** Request browser notification permission if not yet granted */
-function requestNotificationPermission() {
-  if (typeof window === "undefined" || !("Notification" in window)) return;
-  if (Notification.permission === "default") {
-    Notification.requestPermission().catch(() => {});
-  }
-}
 
 /** Send a browser notification for a chat message (only when page not focused) */
 function notifyChatMessage(msg: ChatMsg, roomName: string) {
-  if (typeof window === "undefined" || !("Notification" in window)) return;
-  if (Notification.permission !== "granted") return;
-  if (document.hasFocus()) return;
-  if (document.visibilityState === "visible" && document.hasFocus()) return;
-
-  try {
-    const n = new Notification(`${msg.nickname} in ${roomName}`, {
-      body: msg.message.slice(0, 200),
-      icon: "/cover-placeholder.jpg",
-      tag: `chat-${msg.id}`,
-    });
-    n.onclick = () => {
-      window.focus();
-      n.close();
-    };
-    setTimeout(() => n.close(), 6000);
-  } catch {}
+  notifyBrowserEvent(`${msg.nickname} in ${roomName}`, msg.message.slice(0, 200), {
+    tag: `chat-${msg.id}`,
+  });
 }
 
 /** Create a system chat message */
@@ -537,6 +516,8 @@ export function useRoom(handlers: RoomHandlers) {
             role: "owner",
             state: "active",
             at: Date.now(),
+            apk: isAndroidApp(),
+            avatar: avatarRef.current,
           })
           .catch(() => {});
         chanRef.current
@@ -619,7 +600,17 @@ export function useRoom(handlers: RoomHandlers) {
         joinedAt: m.at || now,
         state: (m.state as MemberState) || "active",
         apk: !!m.apk,
-        avatar: typeof m.avatar === "number" ? m.avatar : undefined,
+        // Avatar must be sticky: presence metas that lack an avatar (older
+        // clients, dropped re-tracks) keep the last known avatar so it never
+        // vanishes when a room action reshuffles the roster.
+        avatar:
+          uid === me.current
+            ? avatarRef.current >= 0
+              ? avatarRef.current
+              : knownMembersCacheRef.current.get(uid)?.avatar
+            : typeof m.avatar === "number"
+              ? m.avatar
+              : knownMembersCacheRef.current.get(uid)?.avatar,
         lastSeen: now,
       };
 
@@ -1041,6 +1032,8 @@ export function useRoom(handlers: RoomHandlers) {
             role: payload.role,
             state: "active",
             at: Date.now(),
+            apk: isAndroidApp(),
+            avatar: avatarRef.current,
           }).catch(() => {});
         }
       });
@@ -1049,13 +1042,14 @@ export function useRoom(handlers: RoomHandlers) {
       chatCh.on("broadcast", { event: "chat" }, ({ payload }) => {
         const m = payload as ChatMsg;
         if (!m || !m.id) return;
+        const isNew = !chatRef.current.some((c) => c.id === m.id);
         setChat((prev) => {
           if (prev.some((c) => c.id === m.id)) return prev;
           const updated = [...prev, { ...m, mine: m.userId === me.current }].slice(-120);
           chatRef.current = updated;
           return updated;
         });
-        if (m.userId !== me.current) {
+        if (isNew && m.userId !== me.current) {
           if (roomRef.current) {
             notifyChatMessage(m, roomRef.current.name);
           }
@@ -1685,6 +1679,8 @@ export function useRoom(handlers: RoomHandlers) {
         role: "member",
         state: "active",
         at: Date.now(),
+        apk: isAndroidApp(),
+        avatar: avatarRef.current,
       })
       .catch(() => {});
   }, [members, announceDirectory]);

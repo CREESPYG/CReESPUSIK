@@ -5,14 +5,21 @@ import {
   CopyIcon,
   CrownSimpleIcon,
   DeviceMobileIcon,
+  GearSixIcon,
   GlobeIcon,
   HeadphonesIcon,
   LockSimpleIcon,
+  MicrophoneIcon,
+  MicrophoneSlashIcon,
+  MinusIcon,
   PaperPlaneRightIcon,
+  PhoneDisconnectIcon,
   PlusIcon,
   SignOutIcon,
   SlidersHorizontalIcon,
   SparkleIcon,
+  SpeakerHighIcon,
+  SpeakerLowIcon,
   UserMinusIcon,
   UsersIcon,
   XIcon,
@@ -51,6 +58,24 @@ const PERM_LABELS: Array<[keyof RoomApi["permissions"], string]> = [
   ["seek", "Allow members to seek track position"],
   ["add_song", "Allow members to queue tracks"],
 ];
+
+function voiceStatusPill(status: string): { label: string; cls: string } {
+  switch (status) {
+    case "connected":
+      return { label: "Voice Live", cls: "bg-emerald-500/10 text-emerald-500 border-emerald-500/25" };
+    case "reconnecting":
+      return { label: "Reconnecting", cls: "bg-amber-500/10 text-amber-500 border-amber-500/25" };
+    case "requesting_mic":
+    case "connecting":
+      return { label: "Starting Mic", cls: "bg-amber-500/10 text-amber-500 border-amber-500/25" };
+    case "mic_blocked":
+      return { label: "Mic Blocked", cls: "bg-danger/10 text-danger border-danger/25" };
+    case "voice_disabled":
+      return { label: "Voice Off", cls: "bg-surface-2 text-fg-3 border-line" };
+    default:
+      return { label: "Idle", cls: "bg-surface-2 text-fg-3 border-line" };
+  }
+}
 
 export function RoomPanel({
   room,
@@ -236,6 +261,7 @@ export function RoomPanel({
   const [name, setName] = useState("");
   const [type, setType] = useState<"public" | "private">("public");
   const [control, setControl] = useState<"host" | "shared">("host");
+  const [voiceOn, setVoiceOn] = useState(true);
 
   // Join Code Form State
   const [joinCode, setJoinCode] = useState("");
@@ -245,6 +271,45 @@ export function RoomPanel({
   const [chatDraft, setChatDraft] = useState("");
   const [copied, setCopied] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // Host Controls collapsible
+  const [hostControlsCollapsed, setHostControlsCollapsed] = useState(false);
+
+  // Voice settings popup (device + token override)
+  const [voiceSettingsOpen, setVoiceSettingsOpen] = useState(false);
+  const [manualToken, setManualToken] = useState("");
+  const [manualChannel, setManualChannel] = useState("");
+
+  const openVoiceSettings = () => {
+    voice
+      .getManualCredentials()
+      .then((creds) => {
+        setManualToken(creds.token);
+        setManualChannel(creds.channel);
+      })
+      .catch(() => {});
+    setVoiceSettingsOpen(true);
+  };
+
+  const saveVoiceCredentials = () => {
+    const t = manualToken.trim();
+    const c = manualChannel.trim();
+    voice
+      .saveManualCredentials(t, c)
+      .then((ok) => {
+        if (ok) {
+          onToast(t ? "Voice token saved — rejoin voice to apply" : "Voice token cleared");
+          setVoiceSettingsOpen(false);
+        } else {
+          onToast("Could not save voice credentials");
+        }
+      });
+  };
+
+  const voice = room.voice;
+  const voicePill = voiceStatusPill(voice.status);
+  const roomVoiceOn = !!voice.voiceEnabled;
+  const voiceIdsSet = new Set(voice.voiceUsers.map((u) => u.userId));
 
   const inRoom = room.inRoom;
   const isHost = room.isHost;
@@ -506,6 +571,37 @@ export function RoomPanel({
                 </div>
               </div>
 
+              <div>
+                <label className="text-xs font-medium text-fg-2 block mb-1">Voice Chat</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setVoiceOn(true)}
+                    className={cn(
+                      "flex items-center justify-center gap-2 h-9 rounded-xl text-xs font-medium border transition-all",
+                      voiceOn
+                        ? "bg-[var(--accent-soft)] border-accent text-[var(--accent-text)] font-semibold shadow-xs"
+                        : "bg-surface-2 border-line text-fg-2 hover:bg-surface-3"
+                    )}
+                  >
+                    <MicrophoneIcon size={16} /> On
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setVoiceOn(false)}
+                    className={cn(
+                      "flex items-center justify-center gap-2 h-9 rounded-xl text-xs font-medium border transition-all",
+                      !voiceOn
+                        ? "bg-[var(--accent-soft)] border-accent text-[var(--accent-text)] font-semibold shadow-xs"
+                        : "bg-surface-2 border-line text-fg-2 hover:bg-surface-3"
+                    )}
+                  >
+                    <MicrophoneSlashIcon size={16} /> Off
+                  </button>
+                </div>
+                <p className="text-[10px] text-fg-3 mt-1">Members can run a live voice talk over the room.</p>
+              </div>
+
               <button
                 type="button"
                 onClick={() => {
@@ -516,7 +612,7 @@ export function RoomPanel({
                     requireApproval: false,
                     control,
                     chatEnabled: true,
-                    voiceEnabled: false,
+                    voiceEnabled: voiceOn,
                     nickname: nick,
                   });
                 }}
@@ -710,6 +806,266 @@ export function RoomPanel({
             </div>
           </div>
 
+          {/* Voice Channel Card */}
+          <div className="p-4 rounded-2xl bg-surface-1 border border-line flex flex-col gap-3 shadow-sm shrink-0">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <MicrophoneIcon size={18} className="text-[var(--accent-text)]" />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-fg-3">Voice Channel</h3>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className={cn("text-[11px] font-medium px-2 py-0.5 rounded-full border", voicePill.cls)}>
+                  {voicePill.label}
+                </span>
+                {roomVoiceOn && (
+                  <button
+                    type="button"
+                    onClick={openVoiceSettings}
+                    title="Voice settings (microphone, speaker & connection token)"
+                    className="p-1.5 rounded-lg bg-surface-2 text-fg-2 hover:text-accent border border-line transition-colors"
+                  >
+                    <GearSixIcon size={13} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {voice.captureDeviceLabel && roomVoiceOn && (
+              <div
+                className="text-[10px] text-fg-3 px-1 -mt-1.5 truncate"
+                title={voice.captureDeviceLabel}
+              >
+                Capturing: <span className="text-fg-2 font-medium">{voice.captureDeviceLabel}</span>
+              </div>
+            )}
+
+            {!roomVoiceOn ? (
+              <div className="flex flex-col gap-2.5">
+                <div className="p-3 rounded-xl bg-surface-2/60 border border-line text-xs text-fg-3 flex items-start gap-2">
+                  <MicrophoneSlashIcon size={16} className="shrink-0 mt-0.5" />
+                  <span>
+                    {room.isHost
+                      ? "Voice chat is turned off. Enable it to talk live with everyone."
+                      : "Voice chat was turned off by the host of this room."}
+                  </span>
+                </div>
+                {room.isHost && (
+                  <button
+                    type="button"
+                    onClick={() => room.toggleVoiceEnabled(true)}
+                    className="h-10 rounded-xl bg-accent text-accent-ink text-xs font-semibold hover:brightness-105 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                  >
+                    <MicrophoneIcon size={16} weight="bold" /> Enable Voice Chat
+                  </button>
+                )}
+              </div>
+            ) : voice.status === "mic_blocked" ? (
+              <div className="flex flex-col gap-2.5">
+                <div className="p-3 rounded-xl bg-danger/10 border border-danger/25 text-xs text-danger flex items-start gap-2">
+                  <MicrophoneSlashIcon size={16} className="shrink-0 mt-0.5" />
+                  <span>Microphone permission was denied. Allow microphone access in your browser, then try again.</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => voice.joinVoice()}
+                  className="h-10 rounded-xl bg-surface-3 hover:bg-surface-4 text-fg text-xs font-semibold border border-line-strong active:scale-[0.98] transition-all"
+                >
+                  Try Again
+                </button>
+              </div>
+            ) : voice.status === "connected" || voice.status === "reconnecting" ? (
+              <>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    {/* Mic mute */}
+                    <button
+                      type="button"
+                      onClick={voice.toggleSelfMute}
+                      title={voice.effectiveMicMuted ? "Unmute yourself" : "Mute yourself"}
+                      className={cn(
+                        "flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-semibold border transition-all active:scale-95",
+                        voice.effectiveMicMuted
+                          ? "bg-danger/10 text-danger border-danger/25 hover:bg-danger/20"
+                          : "bg-surface-2 text-fg border-line hover:bg-surface-3"
+                      )}
+                    >
+                      {voice.effectiveMicMuted ? <MicrophoneSlashIcon size={15} /> : <MicrophoneIcon size={15} />}
+                      {voice.effectiveMicMuted ? "Muted" : "Mic On"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setVoiceSettingsOpen(true)}
+                      title="Microphone & speaker settings"
+                      className="p-2 h-9 grid place-items-center rounded-xl bg-surface-2 text-fg-2 hover:text-accent border border-line transition-all active:scale-95"
+                    >
+                      <GearSixIcon size={15} />
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => voice.leaveVoice()}
+                    title="Leave voice channel"
+                    className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs font-semibold bg-danger/10 text-danger border border-danger/25 hover:bg-danger/20 transition-all active:scale-95"
+                  >
+                    <PhoneDisconnectIcon size={15} /> Leave
+                  </button>
+                </div>
+
+                <div className="flex flex-col gap-1.5 max-h-60 overflow-y-auto scroll-area pr-0.5">
+                  {voice.voiceUsers.map((p) => {
+                    const isMeRow = p.userId === room.me;
+                    const speaking = !!voice.speakingMap[p.userId];
+                    const micOff = p.selfMuted || p.hostMuted || !p.canSpeak;
+                    const locMuted = voice.isUserLocallyMuted(p.userId);
+                    const member = room.members.find((m) => m.id === p.userId);
+                    return (
+                      <div
+                        key={p.userId}
+                        className={cn(
+                          "flex items-center justify-between gap-2 p-2 rounded-xl border transition-colors",
+                          speaking ? "bg-emerald-500/[0.07] border-emerald-500/30" : "bg-surface-2/60 border-line"
+                        )}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div
+                            className={cn(
+                              "size-8 rounded-full overflow-hidden shadow-xs shrink-0 ring-2 bg-surface-3",
+                              speaking ? "ring-emerald-400 animate-pulse" : "ring-line/60"
+                            )}
+                          >
+                            {member && typeof member.avatar === "number" && member.avatar >= 0 ? (
+                              <AvatarArt id={member.avatar} className="size-full" />
+                            ) : (
+                              <div
+                                style={getAvatarStyle(p.nickname, isMeRow)}
+                                className="size-full grid place-items-center font-bold text-xs"
+                              >
+                                {(p.nickname || "?")[0].toUpperCase()}
+                              </div>
+                            )}
+                          </div>
+                          <div className="min-w-0 flex flex-col">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className="text-xs font-semibold text-fg truncate">
+                                {p.nickname} {isMeRow ? "(You)" : ""}
+                              </span>
+                              {(p.role === "owner" || p.role === "host") && (
+                                <CrownSimpleIcon size={11} weight="fill" className="text-amber-500 shrink-0" />
+                              )}
+                            </div>
+                            <span className={cn("text-[10px] font-mono truncate", speaking ? "text-emerald-500" : "text-fg-3")}>
+                              {micOff ? "muted" : speaking ? "speaking" : "quiet"}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          {!isMeRow && (
+                            <>
+                              <input
+                                type="range"
+                                min={0}
+                                max={150}
+                                step={5}
+                                value={voice.getUserVolume(p.userId)}
+                                onChange={(e) => voice.setUserVolume(p.userId, Number(e.target.value))}
+                                title={`Volume for ${p.nickname}: ${voice.getUserVolume(p.userId)}%`}
+                                className="w-14 sm:w-16 h-1 accent-[var(--accent)] cursor-pointer shrink-0"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => voice.toggleLocalMuteUser(p.userId)}
+                                title={locMuted ? `Unmute ${p.nickname} for you` : `Silence ${p.nickname} for you`}
+                                className={cn(
+                                  "p-1.5 rounded-lg border text-[11px] transition-colors",
+                                  locMuted
+                                    ? "bg-danger/10 text-danger border-danger/25"
+                                    : "bg-surface-3 hover:bg-surface-2 text-fg-2 border-line hover:text-accent"
+                                )}
+                              >
+                                {locMuted ? <SpeakerLowIcon size={13} /> : <SpeakerHighIcon size={13} />}
+                              </button>
+                            </>
+                          )}
+
+                          {room.isHost && !isMeRow && p.role !== "owner" && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => voice.setMemberHostMuted(p.userId, !p.hostMuted)}
+                                title={p.hostMuted ? "Host-unmute their mic" : "Host-mute their mic"}
+                                className={cn(
+                                  "p-1.5 rounded-lg border text-[11px] transition-colors",
+                                  p.hostMuted
+                                    ? "bg-danger/10 text-danger border-danger/25"
+                                    : "bg-surface-3 hover:bg-surface-2 text-fg-2 border-line hover:text-danger"
+                                )}
+                              >
+                                <MicrophoneSlashIcon size={13} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => voice.kickFromVoice(p.userId)}
+                                title="Disconnect from voice"
+                                className="p-1.5 rounded-lg bg-surface-3 hover:bg-red-500/20 text-fg-3 hover:text-red-400 border border-line text-[11px] transition-colors"
+                              >
+                                <PhoneDisconnectIcon size={13} />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {voice.lastError && (
+                  <div className="p-3 rounded-xl bg-danger/10 border border-danger/25 text-xs text-danger flex items-start gap-2">
+                    <MicrophoneSlashIcon size={16} className="shrink-0 mt-0.5" />
+                    <span className="break-words">{voice.lastError}</span>
+                  </div>
+                )}
+                <div className="p-3 rounded-xl bg-surface-2/60 border border-line text-xs text-fg-3 flex items-start gap-2">
+                  {voice.status === "requesting_mic" || voice.status === "connecting" ? (
+                    <span className="size-4 rounded-full border-2 border-accent border-t-transparent animate-spin shrink-0 mt-0.5" />
+                  ) : (
+                    <HeadphonesIcon size={16} className="shrink-0 text-[var(--accent-text)] mt-0.5" />
+                  )}
+                  <span>
+                    {voice.status === "requesting_mic" || voice.status === "connecting"
+                      ? "Starting your microphone and connecting to the voice channel..."
+                      : "Join the live voice talk and chat with the room while listening."}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => voice.joinVoice()}
+                    disabled={voice.status === "requesting_mic" || voice.status === "connecting"}
+                    className={cn(
+                      "flex-1 h-10 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-2",
+                      voice.status === "requesting_mic" || voice.status === "connecting"
+                        ? "bg-surface-2 text-fg-3 cursor-wait border border-line"
+                        : "bg-accent text-accent-ink hover:brightness-105 active:scale-[0.98] shadow-md"
+                    )}
+                  >
+                    <MicrophoneIcon size={16} weight="bold" /> Join Voice
+                  </button>
+                  <button
+                    type="button"
+                    onClick={openVoiceSettings}
+                    title="Voice settings (microphone, speaker & connection token)"
+                    className="p-2 h-10 grid place-items-center rounded-xl bg-surface-2 text-fg-2 hover:text-accent border border-line transition-all active:scale-95 shrink-0"
+                  >
+                    <GearSixIcon size={15} />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Listeners List Card */}
           <div className="p-4 rounded-2xl bg-surface-1 border border-line flex flex-col gap-3 flex-1 min-h-[160px] shadow-sm overflow-hidden">
             <div className="flex items-center justify-between shrink-0">
@@ -760,6 +1116,14 @@ export function RoomPanel({
                         <span className="text-[10px] text-fg-3 font-mono">
                           {isUserHost ? "Session Host" : "Listener"}
                         </span>
+                        {voiceIdsSet.has(m.id) && (
+                          <span
+                            title="Currently in the voice channel"
+                            className="shrink-0 flex items-center gap-0.5 text-[10px] font-mono text-emerald-500 bg-emerald-500/10 border border-emerald-500/25 rounded-full px-1.5"
+                          >
+                            <MicrophoneIcon size={11} weight="fill" /> voice
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -825,9 +1189,34 @@ export function RoomPanel({
             <div className="p-4 rounded-2xl bg-surface-1 border border-line flex flex-col gap-3 shadow-sm shrink-0">
               <div className="flex items-center gap-2">
                 <SlidersHorizontalIcon size={18} className="text-fg-2" />
-                <h3 className="text-sm font-semibold text-fg">Host Controls</h3>
+                <h3 className="text-sm font-semibold text-fg flex-1">
+                  Host Controls
+                  {hostControlsCollapsed && roomVoiceOn && (
+                    <span className="ml-2 text-[10px] font-medium text-fg-3 align-middle">voice on</span>
+                  )}
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setHostControlsCollapsed((v) => !v)}
+                  title={hostControlsCollapsed ? "Show Host Controls" : "Hide Host Controls"}
+                  className="p-1.5 rounded-lg bg-surface-2 text-fg-2 hover:text-accent hover:bg-surface-3 border border-line transition-all active:scale-95"
+                >
+                  {hostControlsCollapsed ? <PlusIcon size={13} /> : <MinusIcon size={13} />}
+                </button>
               </div>
+              {!hostControlsCollapsed && (
               <div className="flex flex-col gap-2">
+                <label className="flex items-center justify-between p-2 rounded-xl bg-surface-2/60 border border-line text-xs text-fg-2 cursor-pointer hover:bg-surface-2 transition-colors">
+                  <span className="flex items-center gap-2">
+                    <MicrophoneIcon size={14} className="text-[var(--accent-text)]" /> Enable voice chat for everyone
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={roomVoiceOn}
+                    onChange={(e) => room.toggleVoiceEnabled(e.target.checked)}
+                    className="rounded border-line-strong text-accent focus:ring-accent"
+                  />
+                </label>
                 {PERM_LABELS.map(([key, label]) => {
                   const allowed = room.permissions[key];
                   return (
@@ -851,6 +1240,7 @@ export function RoomPanel({
                   );
                 })}
               </div>
+              )}
             </div>
           )}
         </div>
@@ -868,7 +1258,9 @@ export function RoomPanel({
               <ChatCircleDotsIcon size={18} className="text-[var(--accent-text)]" />
               <span className="text-sm font-semibold text-fg">Live Room Chat</span>
             </div>
-            <span className="text-xs font-mono text-fg-3">{room.chat.length} messages</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-mono text-fg-3">{room.chat.length} messages</span>
+            </div>
           </div>
 
           {/* Mobile Only: Compact Synced Track Bar inside Chat */}
@@ -1001,6 +1393,100 @@ export function RoomPanel({
           </form>
         </div>
       </div>
+
+      {/* Voice Settings */}
+      <Modal open={voiceSettingsOpen} onClose={() => setVoiceSettingsOpen(false)} title="Voice Settings" center>
+        <div className="flex flex-col gap-3">
+          <p className="text-xs text-fg-3">
+            Choose which microphone you speak through and which speaker output plays the room talk.
+          </p>
+          <div>
+            <label className="text-xs font-medium text-fg-2 block mb-1">Microphone</label>
+            <select
+              value={voice.selectedInput || ""}
+              onChange={(e) => voice.setAudioInputDevice(e.target.value)}
+              className="w-full h-10 px-3 rounded-xl bg-surface-2 border border-line text-sm text-fg focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent"
+            >
+              <option value="">Default microphone</option>
+              {voice.audioInputs.map((d, i) => (
+                <option key={d.deviceId || i} value={d.deviceId}>
+                  {d.label || `Microphone ${i + 1}`}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-fg-2 block mb-1">Speaker output</label>
+            <select
+              value={voice.selectedOutput || ""}
+              onChange={(e) => voice.setAudioOutputDevice(e.target.value)}
+              className="w-full h-10 px-3 rounded-xl bg-surface-2 border border-line text-sm text-fg focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent"
+            >
+              <option value="">Default speaker</option>
+              {voice.audioOutputs.map((d, i) => (
+                <option key={d.deviceId || i} value={d.deviceId}>
+                  {d.label || `Speaker ${i + 1}`}
+                </option>
+              ))}
+            </select>
+            <p className="text-[10px] text-fg-3 mt-1">
+              Output switching uses per-track playback routing where the browser supports it.
+            </p>
+          </div>
+
+          {/* Advanced: connection token override */}
+          <div className="pt-3 border-t border-line">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-fg-3 mb-2">Advanced Connection</p>
+            <p className="text-xs text-fg-3 mb-2">
+              Agora projects with an App Certificate enabled need a signed token. Generate a temporary token in the
+              Agora Console (Security → Generate Temporary Token) and paste it below, or ask the room owner to
+              configure the server certificate.
+            </p>
+            <div className="flex flex-col gap-2">
+              <div>
+                <label className="text-xs font-medium text-fg-2 block mb-1">Channel (from your token)</label>
+                <input
+                  type="text"
+                  value={manualChannel}
+                  onChange={(e) => setManualChannel(e.target.value.toUpperCase())}
+                  placeholder={"Auto (voice_" + (room.room?.code || "ROOMCODE") + ")"}
+                  maxLength={64}
+                  className="w-full h-10 px-3 rounded-xl bg-surface-2 border border-line text-sm font-mono text-fg placeholder:text-fg-3 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-fg-2 block mb-1">Temporary token</label>
+                <input
+                  type="text"
+                  value={manualToken}
+                  onChange={(e) => setManualToken(e.target.value)}
+                  placeholder="Paste the 24h token from Agora Console"
+                  spellCheck={false}
+                  className="w-full h-10 px-3 rounded-xl bg-surface-2 border border-line text-[11px] font-mono text-fg placeholder:text-fg-3 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setManualToken("");
+                    setManualChannel("");
+                  }}
+                  className="text-[10px] text-fg-3 hover:text-danger underline mt-1"
+                >
+                  Clear token (use testing mode / server token)
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={saveVoiceCredentials}
+            className="w-full h-10 rounded-xl bg-accent text-accent-ink font-semibold text-sm hover:brightness-105 active:scale-[0.98] transition-all"
+          >
+            Save Voice Settings
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 }

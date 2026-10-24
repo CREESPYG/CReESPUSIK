@@ -22,3 +22,7 @@ mobile/
 release-apk/
 release/
 scratch/
+
+.vercel
+.env*
+.vscode/

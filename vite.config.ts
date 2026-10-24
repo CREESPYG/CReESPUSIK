@@ -39,6 +39,10 @@ function apiDevServer(): Plugin {
             const { default: handler } = await import("./api/radio");
             return await handler(req as any, res as any);
           }
+          if (pathname === "/api/agora-token") {
+            const { default: handler } = await import("./api/agora-token");
+            return await handler(req as any, res as any);
+          }
         } catch (err: any) {
           if (!res.headersSent) {
             res.statusCode = 500;
@@ -82,6 +86,7 @@ export default defineConfig(() => {
           skipWaiting: true,
           clientsClaim: true,
           cleanupOutdatedCaches: true,
+          maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
           navigateFallback: null,
           navigateFallbackDenylist: [/^\/api\//, /^\/downloads\//],
           runtimeCaching: [

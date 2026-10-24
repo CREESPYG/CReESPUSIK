@@ -25,24 +25,33 @@ const MIMES = {
 };
 
 // Handlers cache
-let searchHandler, streamHandler, suggestHandler, genresHandler, radioHandler;
+let searchHandler, streamHandler, suggestHandler, genresHandler, radioHandler, agoraTokenHandler;
 
 async function getHandlers() {
   if (!searchHandler) {
-    const [s, st, sg, g, r] = await Promise.all([
+    const [s, st, sg, g, r, at] = await Promise.all([
       import("./api/search.ts"),
       import("./api/stream/[id]/audio.ts"),
       import("./api/suggest.ts"),
       import("./api/genres.ts"),
       import("./api/radio/[id].ts"),
+      import("./api/agora-token.ts"),
     ]);
     searchHandler = s.default;
     streamHandler = st.default;
     suggestHandler = sg.default;
     genresHandler = g.default;
     radioHandler = r.default;
+    agoraTokenHandler = at.default;
   }
-  return { searchHandler, streamHandler, suggestHandler, genresHandler, radioHandler };
+  return {
+    searchHandler,
+    streamHandler,
+    suggestHandler,
+    genresHandler,
+    radioHandler,
+    agoraTokenHandler,
+  };
 }
 
 function serveStatic(filePath, req, res) {
@@ -109,6 +118,9 @@ const server = createServer(async (req, res) => {
       }
       if (pathname === "/api/radio" || pathname.startsWith("/api/radio/")) {
         return await handlers.radioHandler(req, res);
+      }
+      if (pathname === "/api/agora-token") {
+        return await handlers.agoraTokenHandler(req, res);
       }
 
       res.statusCode = 404;

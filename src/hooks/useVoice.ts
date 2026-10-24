@@ -1,9 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
-import { WebRtcVoiceManager } from "../lib/webrtc";
+import type { AgoraVoiceManager } from "../lib/agora";
 import { backgroundKeepAlive } from "../lib/backgroundKeepAlive";
+import { notify as notifyBrowserEvent, requestNotificationPermission } from "../lib/notify";
 import type { Member, MemberRole, VoiceParticipant } from "../lib/room";
 import { getTabSessionId } from "../lib/room";
+
+/**
+ * The Agora engine is a heavy chunk — load it only the first time the user
+ * actually joins voice, so the app's initial bundle stays lean.
+ */
+let agoraLoadPromise: Promise<typeof import("../lib/agora")> | null = null;
+function loadAgoraEngine(): Promise<typeof import("../lib/agora")> {
+  if (!agoraLoadPromise) {
+    agoraLoadPromise = import("../lib/agora");
+  }
+  return agoraLoadPromise;
+}
 
 export type VoiceStatus =
   | "disconnected"
@@ -25,29 +38,8 @@ export interface UseVoiceOptions {
   onToast: (msg: string) => void;
 }
 
-function requestNotificationPermission() {
-  if (typeof window === "undefined" || !("Notification" in window)) return;
-  if (Notification.permission === "default") {
-    Notification.requestPermission().catch(() => {});
-  }
-}
-
-function notifyVoiceEvent(title: string, body: string) {
-  if (typeof window === "undefined" || !("Notification" in window)) return;
-  if (Notification.permission !== "granted") return;
-  if (document.hasFocus() && document.visibilityState === "visible") return;
-
-  try {
-    const n = new Notification(title, {
-      body,
-      tag: `voice-status-${Date.now()}`,
-    });
-    n.onclick = () => {
-      window.focus();
-      n.close();
-    };
-    setTimeout(() => n.close(), 4500);
-  } catch {}
+function notifyVoiceEvent(title: string, body: string, tag?: string) {
+  notifyBrowserEvent(title, body, { tag: tag ? `voice-${tag}` : undefined });
 }
 
 export function useVoice({
@@ -72,8 +64,11 @@ export function useVoice({
   const [selectedInput, setSelectedInput] = useState<string>("");
   const [selectedOutput, setSelectedOutput] = useState<string>("");
   const [, setVolTicker] = useState(0);
+  const [lastError, setLastError] = useState<string>("");
+  const [captureDeviceLabel, setCaptureDeviceLabel] = useState<string>("");
+  const [manualCreds, setManualCreds] = useState<{ token: string; channel: string }>({ token: "", channel: "" });
 
-  const rtcRef = useRef<WebRtcVoiceManager | null>(null);
+  const rtcRef = useRef<AgoraVoiceManager | null>(null);
   const chanRef = useRef<RealtimeChannel | null>(channel);
   chanRef.current = channel;
   const myParticipantRef = useRef<VoiceParticipant | null>(null);
@@ -85,8 +80,7 @@ export function useVoice({
   const onToastRef = useRef(onToast);
   onToastRef.current = onToast;
   const boundChannelRef = useRef<RealtimeChannel | null>(null);
-  const voiceUsersRef = useRef(voiceUsers);
-  voiceUsersRef.current = voiceUsers;
+  const intentionalLeaveRef = useRef(false);
 
   const isOwner = myRole === "owner";
   const isHostOrOwner = myRole === "owner" || myRole === "host";
@@ -126,6 +120,12 @@ export function useVoice({
     missingTimerRef.current.forEach((t) => window.clearTimeout(t));
     missingTimerRef.current.clear();
 
+    // Mark intentional so the engine's CLOSED event doesn't double-notify.
+    intentionalLeaveRef.current = true;
+    window.setTimeout(() => {
+      intentionalLeaveRef.current = false;
+    }, 1200);
+
     if (rtcRef.current) {
       rtcRef.current.destroy();
       rtcRef.current = null;
@@ -138,9 +138,10 @@ export function useVoice({
     });
     setSpeakingMap({});
     setStatus("disconnected");
+    setCaptureDeviceLabel("");
     if (notify) {
       onToast("Disconnected from Voice Channel");
-      notifyVoiceEvent("Voice Chat", "Disconnected from Voice Channel");
+      notifyVoiceEvent("Voice Chat", "Disconnected from Voice Channel", "self-status");
     }
   }, [myUserId, sendVoiceBroadcast, onToast]);
 
@@ -169,17 +170,43 @@ export function useVoice({
     if (!roomId) return;
 
     setStatus("requesting_mic");
+    setLastError("");
 
-    const mgr = new WebRtcVoiceManager(myUserId, {
-      onSignal: ({ to, from, event, payload }) => {
-        sendVoiceBroadcast(event, { to, from, payload });
-      },
+    let agoraModule: typeof import("../lib/agora");
+    try {
+      agoraModule = await loadAgoraEngine();
+    } catch {
+      setStatus("disconnected");
+      onToast("Voice engine failed to load. Check your connection and try again.");
+      return;
+    }
+    rtcRef.current = null;
+
+    const mgr = new agoraModule.AgoraVoiceManager(myUserId, {
       onSpeakingChange: (uid, isSpeaking) => {
         setSpeakingMap((prev) => (prev[uid] === isSpeaking ? prev : { ...prev, [uid]: isSpeaking }));
       },
-      onPeerConnectionState: (_uid, _connState) => {},
+      onConnectionState: (state) => {
+        if (state === "connected") {
+          setStatus((s) => (s === "reconnecting" ? "connected" : s));
+        } else if (state === "reconnecting") {
+          setStatus((s) => (s === "connected" || s === "reconnecting" ? "reconnecting" : s));
+        } else if (state === "closed") {
+          if (!intentionalLeaveRef.current && myParticipantRef.current && statusRef.current !== "disconnected") {
+            leaveVoice(true);
+          }
+        }
+      },
+      onRemoteJoined: (_uid) => {
+        // A voice peer appeared in Agora before we saw their Supabase metadata;
+        // ask everyone to re-announce so the roster stays complete.
+        sendVoiceBroadcast("voice_query", { from: myUserId });
+      },
       onError: (err) => {
         onToast(`Voice notice: ${err}`);
+      },
+      onMicrophoneDevice: (label) => {
+        setCaptureDeviceLabel(label);
       },
     });
 
@@ -190,10 +217,31 @@ export function useVoice({
     mgr.hostMuted = hostMuted;
 
     try {
-      await mgr.startMicrophone(selectedInput || undefined);
+      const channelName = agoraModule.agoraVoiceChannelName(roomId);
+      const tokenProvider = async (): Promise<string | null> => {
+        // Ask the app's backend to mint a signed token (used when the Agora
+        // project has an App Certificate enabled). Returns null when the
+        // backend has no certificate configured.
+        try {
+          const res = await fetch(
+            `/api/agora-token?channel=${encodeURIComponent(channelName)}&uid=${encodeURIComponent(myUserId)}`
+          );
+          if (!res.ok) return null;
+          const data = await res.json().catch(() => null);
+          return typeof data?.token === "string" && data.token ? data.token : null;
+        } catch {
+          return null;
+        }
+      };
+      await mgr.start({
+        channel: channelName,
+        uid: myUserId,
+        deviceId: selectedInput || undefined,
+        tokenProvider,
+      });
       setStatus("connected");
       onToast("Connected to Voice Channel");
-      notifyVoiceEvent("Voice Chat", "Connected to Voice Channel");
+      notifyVoiceEvent("Voice Chat", "Connected to Voice Channel", "self-status");
       requestNotificationPermission();
 
       const meParticipant: VoiceParticipant = {
@@ -220,12 +268,15 @@ export function useVoice({
       sendVoiceBroadcast("voice_query", { from: myUserId });
       loadDevices();
     } catch (err: any) {
-      if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+      const raw = String(err?.message || err || "");
+      if (/NOT_ALLOWED|NotAllowedError|PermissionDeniedError|denied/i.test(raw)) {
         setStatus("mic_blocked");
+        setLastError("Microphone permission denied. Please allow microphone access.");
         onToast("Microphone permission denied. Please allow microphone access.");
       } else {
         setStatus("disconnected");
-        onToast(`Microphone error: ${err.message || "Failed to start"}`);
+        setLastError(raw.slice(0, 400));
+        onToast(`Voice error: ${raw.slice(0, 180)}`);
       }
       mgr.destroy();
       rtcRef.current = null;
@@ -245,6 +296,7 @@ export function useVoice({
     sendVoiceBroadcast,
     onToast,
     loadDevices,
+    leaveVoice,
   ]);
 
   /** Toggle Self Mute */
@@ -291,12 +343,36 @@ export function useVoice({
     return rtcRef.current?.isUserLocallyMuted(userId) || false;
   }, []);
 
+  /* ---------------- Manual temporary-token credentials (Agora Console) ---------------- */
+
+  const getManualCredentials = useCallback(async (): Promise<{ token: string; channel: string }> => {
+    try {
+      const m = await loadAgoraEngine();
+      const creds = m.getManualAgoraCredentials();
+      setManualCreds(creds);
+      return creds;
+    } catch {
+      return { token: "", channel: "" };
+    }
+  }, []);
+
+  const saveManualCredentials = useCallback(async (token: string, channel: string): Promise<boolean> => {
+    try {
+      const m = await loadAgoraEngine();
+      m.setManualAgoraCredentials(token, channel);
+      const creds = m.getManualAgoraCredentials();
+      setManualCreds(creds);
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
+
   /** Change Audio Input Device */
-  const setAudioInputDevice = useCallback(async (deviceId: string) => {
-    setSelectedInput(deviceId);
+  const setAudioInputDevice = useCallback(async (deviceId: string) => {    setSelectedInput(deviceId);
     if (status === "connected" && rtcRef.current) {
       try {
-        await rtcRef.current.startMicrophone(deviceId);
+        await rtcRef.current.setMicrophoneDevice(deviceId);
         onToast("Microphone switched");
       } catch {
         onToast("Failed to switch microphone");
@@ -308,11 +384,8 @@ export function useVoice({
   const setAudioOutputDevice = useCallback(async (deviceId: string) => {
     setSelectedOutput(deviceId);
     try {
-      const ctx = await rtcRef.current?.ensureAudioContext();
-      if (ctx && "setSinkId" in ctx) {
-        await (ctx as any).setSinkId(deviceId);
-        onToast("Audio output switched");
-      }
+      await rtcRef.current?.setPlaybackDevice(deviceId);
+      onToast("Audio output switched");
     } catch {
       onToast("Speaker output selection not supported in this browser");
     }
@@ -344,14 +417,6 @@ export function useVoice({
       next.set(targetUserId, { ...existing, hostMuted: muted });
       return next;
     });
-    if (rtcRef.current) {
-      if (muted) {
-        rtcRef.current.setUserVolume(targetUserId, 0);
-      } else {
-        const storedVol = getUserVolume(targetUserId) || 100;
-        rtcRef.current.setUserVolume(targetUserId, storedVol);
-      }
-    }
     sendVoiceBroadcast("voice_host_action", {
       targetUserId,
       action: "host_mute",
@@ -359,7 +424,7 @@ export function useVoice({
       byUserId: myUserId,
     });
     onToast(muted ? `Muted ${targetMember?.nickname || "member"}` : `Unmuted ${targetMember?.nickname || "member"}`);
-  }, [members, myUserId, sendVoiceBroadcast, onToast, getUserVolume]);
+  }, [members, myUserId, sendVoiceBroadcast, onToast]);
 
   const setMemberCanSpeak = useCallback((targetUserId: string, allowed: boolean) => {
     const targetMember = members.find((m) => m.id === targetUserId);
@@ -416,7 +481,6 @@ export function useVoice({
       next.delete(targetUserId);
       return next;
     });
-    rtcRef.current?.removePeer(targetUserId);
     setSpeakingMap((prev) => {
       if (!prev[targetUserId]) return prev;
       const next = { ...prev };
@@ -454,7 +518,6 @@ export function useVoice({
           next.delete(userId);
           return next;
         });
-        rtcRef.current?.removePeer(userId);
         setSpeakingMap((prevMap) => {
           if (!prevMap[userId]) return prevMap;
           const next = { ...prevMap };
@@ -480,18 +543,17 @@ export function useVoice({
       // Only announce to user if local user is actually active in voice
       if (statusRef.current === "connected" && payload.nickname) {
         onToastRef.current(`${payload.nickname} joined voice`);
-        notifyVoiceEvent("Voice Chat", `${payload.nickname} joined voice`);
+        notifyVoiceEvent("Voice Chat", `${payload.nickname} joined voice`, `user-${payload.userId}-join`);
       }
 
-      // If we are in voice, reply with voice_announce and connect peer
-      if (myParticipantRef.current && statusRef.current === "connected" && rtcRef.current) {
+      // Reply with our participant metadata so the joiner's roster fills fast
+      if (myParticipantRef.current && statusRef.current === "connected") {
         sendVoiceBroadcast("voice_announce", {
           to: payload.userId,
           participant: myParticipantRef.current,
         });
-        const shouldOffer = myUserId > payload.userId;
-        rtcRef.current.connectToPeer(payload.userId, shouldOffer);
       }
+      // Agora handles the audio transport automatically — metadata only.
     };
 
     const onVoiceQuery = ({ payload }: { payload: { from: string } }) => {
@@ -518,13 +580,7 @@ export function useVoice({
         return next;
       });
 
-      if (rtcRef.current && statusRef.current === "connected") {
-        const pc = rtcRef.current.getPeer(p.userId);
-        if (!pc || pc.connectionState === "closed" || pc.connectionState === "failed" || pc.connectionState === "disconnected") {
-          const shouldOffer = myUserId > p.userId;
-          rtcRef.current.connectToPeer(p.userId, shouldOffer);
-        }
-      }
+      // Agora handles audio transport automatically — metadata announce only.
     };
 
     const onVoiceHeartbeat = ({ payload }: { payload: { participant: VoiceParticipant } }) => {
@@ -552,14 +608,6 @@ export function useVoice({
         next.set(p.userId, { ...(existing || {}), ...p });
         return next;
       });
-
-      if (rtcRef.current && statusRef.current === "connected") {
-        const pc = rtcRef.current.getPeer(p.userId);
-        if (!pc || pc.connectionState === "closed" || pc.connectionState === "failed" || pc.connectionState === "disconnected") {
-          const shouldOffer = myUserId > p.userId;
-          rtcRef.current.connectToPeer(p.userId, shouldOffer);
-        }
-      }
     };
 
     const onVoiceLeave = ({ payload }: { payload: { userId: string } }) => {
@@ -574,42 +622,12 @@ export function useVoice({
         next.delete(payload.userId);
         return next;
       });
-      rtcRef.current?.removePeer(payload.userId);
       setSpeakingMap((prev) => {
         if (!prev[payload.userId]) return prev;
         const next = { ...prev };
         delete next[payload.userId];
         return next;
       });
-    };
-
-    // WebRTC signaling
-    const onVoiceOffer = async ({ payload }: { payload: any }) => {
-      if (payload?.to !== myUserId) return;
-      if (rtcRef.current && statusRef.current === "connected") {
-        await rtcRef.current.handleOffer(payload.from, payload.payload);
-      }
-    };
-
-    const onVoiceAnswer = async ({ payload }: { payload: any }) => {
-      if (payload?.to !== myUserId) return;
-      if (rtcRef.current && statusRef.current === "connected") {
-        await rtcRef.current.handleAnswer(payload.from, payload.payload);
-      }
-    };
-
-    const onVoiceIce = async ({ payload }: { payload: any }) => {
-      if (payload?.to !== myUserId) return;
-      if (rtcRef.current && statusRef.current === "connected") {
-        await rtcRef.current.handleIceCandidate(payload.from, payload.payload);
-      }
-    };
-
-    const onVoiceRenegotiate = async ({ payload }: { payload: any }) => {
-      if (payload?.to !== myUserId) return;
-      if (rtcRef.current && statusRef.current === "connected") {
-        await rtcRef.current.handleRenegotiate(payload.from);
-      }
     };
 
     const onVoiceState = ({ payload }: { payload: any }) => {
@@ -670,10 +688,6 @@ export function useVoice({
     ch.on("broadcast", { event: "voice_announce" }, onVoiceAnnounce);
     ch.on("broadcast", { event: "voice_heartbeat" }, onVoiceHeartbeat);
     ch.on("broadcast", { event: "voice_leave" }, onVoiceLeave);
-    ch.on("broadcast", { event: "voice_offer" }, onVoiceOffer);
-    ch.on("broadcast", { event: "voice_answer" }, onVoiceAnswer);
-    ch.on("broadcast", { event: "voice_ice" }, onVoiceIce);
-    ch.on("broadcast", { event: "voice_renegotiate" }, onVoiceRenegotiate);
     ch.on("broadcast", { event: "voice_state" }, onVoiceState);
     ch.on("broadcast", { event: "voice_host_action" }, onVoiceHostAction);
 
@@ -697,34 +711,10 @@ export function useVoice({
       if (document.visibilityState !== "visible") return;
       if (statusRef.current !== "connected" || !myParticipantRef.current) return;
 
-      if (rtcRef.current) {
-        rtcRef.current.ensureAudioContext().catch(() => {});
-      }
+      // Agora manages its own audio pipeline — nothing to wake.
 
       sendVoiceBroadcast("voice_query", { from: myUserId });
       sendVoiceBroadcast("voice_announce", { participant: myParticipantRef.current });
-
-      const reconnectAfter = (delay: number) => {
-        window.setTimeout(() => {
-          if (!rtcRef.current || statusRef.current !== "connected") return;
-          voiceUsersRef.current.forEach((p) => {
-            if (p.userId === myUserId) return;
-            const pc = rtcRef.current?.getPeer(p.userId);
-            const badState =
-              !pc ||
-              pc.connectionState === "failed" ||
-              pc.connectionState === "closed" ||
-              pc.connectionState === "disconnected";
-            if (badState) {
-              const shouldOffer = myUserId > p.userId;
-              rtcRef.current?.connectToPeer(p.userId, shouldOffer);
-            }
-          });
-        }, delay);
-      };
-
-      reconnectAfter(1500);
-      reconnectAfter(4000);
     };
 
     document.addEventListener("visibilitychange", handleReSync);
@@ -773,6 +763,8 @@ export function useVoice({
     effectiveMicEnabled: !effectiveMicMuted,
     voiceEnabled,
     speakingMap,
+    lastError,
+    captureDeviceLabel,
     voiceUsers: participantsList,
     participants: participantsList,
     voiceCount: participantsList.length,
@@ -780,6 +772,9 @@ export function useVoice({
     audioOutputs,
     selectedInput,
     selectedOutput,
+    manualCreds,
+    getManualCredentials,
+    saveManualCredentials,
     isOwner,
     isHostOrOwner,
     // Actions
