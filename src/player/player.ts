@@ -85,6 +85,57 @@ const prefetchedTracks = new Set<string>();
 
 const STORAGE_KEY = "musike:player";
 
+// ===== Radio ("Start radio from this track") =====
+// Results are cached per seed track, so repeated clicks are instant and always show the same
+// upcoming list. YouTube Music may return a slightly different "Up next" panel per request; without
+// a cache every click swapped the queue for a different list (the reported flicker). One in-flight
+// request per seed also keeps rapid clicks from hammering the API.
+const radioCache = new Map<string, Track[]>();
+const radioInflight = new Map<string, Promise<Track[]>>();
+/** Latest radio click wins: a slow response from an older click can never overwrite a newer one. */
+let radioSeq = 0;
+
+/** De-duplicates by id (keeping order) against an initial set of ids. */
+function uniqueTracks(list: Track[], exclude: Set<string>): Track[] {
+  const out: Track[] = [];
+  const seen = new Set(exclude);
+  for (const t of list) {
+    if (!t?.id || seen.has(t.id)) continue;
+    seen.add(t.id);
+    out.push(t);
+  }
+  return out;
+}
+
+/** Radio tracks for a seed: cached, single-flight, never rejects (radio is best-effort). */
+function fetchRadio(seed: Track): Promise<Track[]> {
+  const cached = radioCache.get(seed.id);
+  if (cached) return Promise.resolve(cached);
+  let pending = radioInflight.get(seed.id);
+  if (!pending) {
+    pending = (async () => {
+      let list: Track[] = [];
+      try {
+        list = uniqueTracks((await api.radio(seed.id)) ?? [], new Set([seed.id]));
+      } catch {
+        list = [];
+      }
+      if (!list.length) {
+        try {
+          const fallback = await api.search(seed.artist || seed.title, "song");
+          list = uniqueTracks(fallback ?? [], new Set([seed.id]));
+        } catch {
+          list = [];
+        }
+      }
+      if (list.length) radioCache.set(seed.id, list);
+      return list;
+    })().finally(() => radioInflight.delete(seed.id));
+    radioInflight.set(seed.id, pending);
+  }
+  return pending;
+}
+
 interface Saved {
   queue: Track[];
   original: Track[] | null;
@@ -257,6 +308,9 @@ export const usePlayer = create<PlayerState>((set, get) => {
     if (!track || recordedToken === token) return;
     recordedToken = token;
     useLibrary.getState().recordPlay(track);
+    // Warm the radio cache for this track: the first "Start radio" click then updates the queue
+    // instantly (and repeated clicks reuse the same list). Best-effort, never blocks playback.
+    void fetchRadio(track);
     // Warm up the next track (and, in Video mode, find and resolve its clip) so it starts quickly.
     const upcoming = s.queue[s.index + 1];
     if (!upcoming) return;
@@ -469,6 +523,7 @@ ytFallback.init({
 
     playList: (tracks, start = 0) => {
       if (!tracks.length) return;
+      radioSeq++; // a whole new queue cancels any pending radio tail
       userWantsPlay = true;
       const first = tracks[start] ?? tracks[0];
       if (get().shuffle) {
@@ -534,49 +589,67 @@ ytFallback.init({
     jumpTo: (i) => load(i),
 
     clearUpcoming: () => {
+      radioSeq++; // the user cleared the tail on purpose: a late radio result must not refill it
       const s = get();
       const keep = s.queue.slice(0, s.index + 1);
       set({ queue: keep, original: s.original ? keep.slice() : null });
     },
 
     startRadio: async (track) => {
-      const s = get();
-      const current = s.queue[s.index];
-      const isCurrentPlaying = Boolean(current && current.id === track.id);
+      const seed = track;
+      const before = get();
 
-      toast(getT().player.startingRadio(track.title));
-
-      // If this is a new track that isn't currently playing, immediately start playing it with 0ms delay!
-      if (!isCurrentPlaying) {
-        get().playList([track], 0);
+      // 1. Focus the seed WITHOUT resetting the queue. The old code called playList([track]) here,
+      // which wiped every other track (that was the "back to default" after clicking radio on a
+      // track that was not the one playing). Now: jump to it if it is already queued, otherwise
+      // insert it right after the current track and play it from there.
+      const current = before.queue[before.index];
+      if (!current || current.id !== seed.id) {
+        const at = before.queue.findIndex((t) => t.id === seed.id);
+        if (at >= 0) {
+          load(at);
+        } else if (before.queue.length) {
+          const insert = before.index + 1;
+          set({
+            queue: [...before.queue.slice(0, insert), seed, ...before.queue.slice(insert)],
+            original: before.original ? [...before.original, seed] : null,
+          });
+          load(insert);
+        } else {
+          get().playList([seed], 0);
+        }
       }
 
-      try {
-        let related = (await api.radio(track.id)).filter((t) => t.id !== track.id);
-        if (!related.length) {
-          const fallback = await api.search(track.artist || track.title, "song").catch(() => [] as Track[]);
-          related = fallback.filter((t: Track) => t.id !== track.id);
-        }
-
+      // 2. Radio owns the upcoming section only. The queue is updated in place — current playback
+      // is never restarted — and the update lands the moment the (cached) list is available.
+      const seq = ++radioSeq;
+      const apply = (related: Track[]) => {
+        if (seq !== radioSeq || !related.length) return; // a newer click (or a new queue) owns the tail
         const fresh = get();
-        const activeTrack = fresh.queue[fresh.index];
+        if (fresh.queue[fresh.index]?.id !== seed.id) return; // the user moved on: never inject stale radio
+        const idx = fresh.index;
+        const kept = fresh.queue.slice(0, idx + 1);
+        const tail = uniqueTracks(related, new Set(kept.map((t) => t.id)));
+        if (!tail.length) return;
+        // Replace the upcoming section as a whole, so repeated clicks swap in the same cached list
+        // instead of stacking a new one on top of the previous radio tracks.
+        const replaced = new Set(fresh.queue.slice(idx + 1).map((t) => t.id));
+        const base = fresh.original ? fresh.original.filter((t) => !replaced.has(t.id)) : null;
+        const original = base ? uniqueTracks([...base, ...tail], new Set<string>()) : null;
+        set({ queue: [...kept, ...tail], original });
+      };
 
-        // Ensure we are still focused on the requested track
-        if (activeTrack && activeTrack.id === track.id) {
-          const curIdx = fresh.index;
-          // Keep all tracks up to current position, and append the fresh radio tracks
-          const kept = fresh.queue.slice(0, curIdx + 1);
-          const existingIds = new Set(kept.map((t) => t.id));
-          const cleanRelated = related.filter((t) => !existingIds.has(t.id));
-          const newQueue = [...kept, ...cleanRelated];
+      const cached = radioCache.get(seed.id);
+      if (cached) {
+        apply(cached); // instant: no network wait, identical list every time
+        return;
+      }
 
-          set({
-            queue: newQueue,
-            original: fresh.original ? [...fresh.original.slice(0, curIdx + 1), ...cleanRelated] : null,
-          });
-        }
-      } catch (e) {
-        toast((e as Error).message, "error");
+      if (!radioInflight.has(seed.id)) toast(getT().player.startingRadio(seed.title));
+      try {
+        apply(await fetchRadio(seed));
+      } catch {
+        // Radio is best-effort: the queue stays exactly as it was and no error is surfaced.
       }
     },
 
